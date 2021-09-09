@@ -14,7 +14,7 @@ class Window(QMainWindow, Ui_MainWindow):
     output_dir = ""
     current_files = []
     files_extracted = 0
-    extract_to_dirs = False
+    create_sub_dirs = False
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -60,12 +60,15 @@ class Window(QMainWindow, Ui_MainWindow):
     def extractClicked(self):
         self.progressBar.setValue(0)
         for index, filename in enumerate(self.current_files):
-            # try:
-            self.import_texlib_th2(filename, self.current_dir, index)
-            # except (Exception):
-            # self.fileTable.setItem(index, 2, QTableWidgetItem("ERROR"))
+            try:
+                self.import_texlib_th2(filename, self.current_dir, index)
+            except (Exception):
+                self.fileTable.setItem(index, 2, QTableWidgetItem("ERROR"))
             self.progressBar.setValue(round(index/len(self.current_files)*100))
         self.progressBar.setValue(100)
+
+    def createSubDirsClicked(self):
+        self.create_sub_dirs = not self.create_sub_dirs
 
     def ps1_to_32bpp(self, c):
         r = (c) & 0x1F
@@ -125,7 +128,12 @@ class Window(QMainWindow, Ui_MainWindow):
     def writeToPng(self, filename, tex_hash, tex_width, tex_height, pixels):
         self.files_extracted += 1
         filename_without_extension = "".join(filename.split(".")[0:-1])
-        output_dir = os.path.join(self.output_dir, filename_without_extension)
+
+        if self.create_sub_dirs:
+            output_dir = os.path.join(self.output_dir, filename_without_extension)
+        else:
+            output_dir = self.output_dir
+
         output_path = os.path.join(output_dir, "{}_0x{:08x}{}.png".format(filename_without_extension, tex_hash, self.files_extracted))
         converted_pixels = self.fixPixelData(tex_width, tex_height, pixels)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -255,7 +263,6 @@ class Window(QMainWindow, Ui_MainWindow):
                                     px = self.ps1_to_32bpp(c)
                                     pixels[y*tex_width-x] = px
                             self.writeToPng(filename, tex_hash, tex_width, tex_height, pixels)
-                            self.fileTable.setItem(file_index, 2, QTableWidgetItem("OK"))
 
                 elif tex_palsize == 256:
                     padwidth = (tex_width+0x1) & ~0x1
@@ -272,8 +279,11 @@ class Window(QMainWindow, Ui_MainWindow):
                                     px = self.ps1_to_32bpp(c)
                                     pixels[y*tex_width-x] = px
                             self.writeToPng(filename, tex_hash, tex_width, tex_height, pixels)
-                            self.fileTable.setItem(file_index, 2, QTableWidgetItem("OK"))
                             break
+            if num_actual_tex > 0:
+                self.fileTable.setItem(file_index, 2, QTableWidgetItem("OK"))
+            else:
+                self.fileTable.setItem(file_index, 2, QTableWidgetItem("SKIPPED"))
         print("Complete!")
 
 
