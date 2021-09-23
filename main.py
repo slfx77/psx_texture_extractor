@@ -30,7 +30,7 @@ class Window(QMainWindow, Ui_MainWindow):
             self.getPsxFiles(dir_name)
 
     def filter_psx_files(self, file_list):
-        return filter(lambda file: file.split('.')[-1] == 'psx', file_list)
+        return filter(lambda file: file.split('.')[-1] == 'psx' or file.split('.')[-1] == 'PSX', file_list)
 
     def getPsxFiles(self, dir_name):
         self.inputPath.setText(dir_name)
@@ -145,7 +145,7 @@ class Window(QMainWindow, Ui_MainWindow):
 
     def import_texlib_th2(self, filename, directory, file_index):
         p = Printer()
-        p.on = False
+        p.on = True
         input_file = os.path.join(directory, filename)
 
         tex_hashes = {}
