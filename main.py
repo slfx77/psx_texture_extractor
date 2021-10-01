@@ -1,3 +1,4 @@
+import traceback
 import os
 import errno
 import struct
@@ -62,7 +63,9 @@ class Window(QMainWindow, Ui_MainWindow):
         for index, filename in enumerate(self.current_files):
             try:
                 self.import_texlib_th2(filename, self.current_dir, index)
-            except (Exception):
+            except Exception as e:
+                print(e)
+                traceback.print_exc()
                 self.fileTable.setItem(index, 2, QTableWidgetItem("ERROR"))
             self.progressBar.setValue(round(index/len(self.current_files)*100))
         self.progressBar.setValue(100)
@@ -70,11 +73,11 @@ class Window(QMainWindow, Ui_MainWindow):
     def createSubDirsClicked(self):
         self.create_sub_dirs = not self.create_sub_dirs
 
-    def ps1_to_32bpp(self, c):
-        r = (c) & 0x1F
-        g = (c >> 5) & 0x1F
-        b = (c >> 10) & 0x1F
-        a = (c >> 15) & 0x1
+    def ps1_to_32bpp(self, color):
+        r = (color) & 0x1F
+        g = (color >> 5) & 0x1F
+        b = (color >> 10) & 0x1F
+        a = (color >> 15) & 0x1
 
         if(r == 31 and g == 0 and b == 31):
             # Fully transparent
@@ -138,45 +141,53 @@ class Window(QMainWindow, Ui_MainWindow):
         converted_pixels = self.fixPixelData(tex_width, tex_height, pixels)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        f = open(output_path, 'wb')
-        w = png.Writer(tex_width, tex_height, greyscale=False, alpha=True)
-        w.write(f, converted_pixels)
-        f.close()
+        file = open(output_path, 'wb')
+        writer = png.Writer(tex_width, tex_height, greyscale=False, alpha=True)
+        writer.write(file, converted_pixels)
+        file.close()
 
     def import_texlib_th2(self, filename, directory, file_index):
-        p = Printer()
-        p.on = True
+        printer = Printer()
+        printer.on = True
         input_file = os.path.join(directory, filename)
 
         tex_hashes = {}
-        with open(input_file, "rb") as inp:
-            r = inp
+        with open(input_file, "rb") as input:
+            reader = input
 
             # Read the file header and determine the number of objects, pointer to tagged chunks
-            magic = r.read(4)
-            assert magic == b"\x04\x00\x02\x00" or magic == b"\x03\x00\x02\x00" or magic == b"\x06\x00\x02\x00"
-            ptr_meta, obj_count, = struct.unpack("<II", r.read(8))
+            magic = reader.read(4)
 
+            # Search for magic numbers, exit if not found(?)
+            assert magic == b"\x04\x00\x02\x00" or magic == b"\x03\x00\x02\x00" or magic == b"\x06\x00\x02\x00"
+
+            # Read two integers, ptr_meta, obj_count (8 bytes)
+            ptr_meta, obj_count, = struct.unpack("<II", reader.read(8))
+
+            # Initialize TEXPSX_DATA dictionary
             TEXPSX_DATA = {}
-            p("Num objects: {}", obj_count)
+
+            printer("Num objects: {}", obj_count)
+
+            # "Objects" are 36 bytes. Skip over them for reading textures.
             for i in range(obj_count):
                 # Skip over object data
-                r.read(36)
+                reader.read(36)
 
             # Determine number of meshes (we need to skip over the mesh name list before texture info)
-            mesh_count = struct.unpack("<I", r.read(4))[0]
-            p("Num meshes: {}", mesh_count)
+            mesh_count = struct.unpack("<I", reader.read(4))[0]
+            printer("Num meshes: {}", mesh_count)
 
             # Skip to the tagged chunks, find the textures
-            r.seek(ptr_meta)
+            reader.seek(ptr_meta)
             chunk_count = -1
             while True:
-                magic = r.read(4)
+                magic = reader.read(4)
                 chunk_count += 1
                 if magic != b"\xFF\xFF\xFF\xFF":
-                    p("SKIPPED CHUNK: {}", magic)
-                    unk_length = struct.unpack("<I", r.read(4))[0]
-                    r.read(unk_length)
+                    printer("SKIPPED CHUNK: 0x{}", magic.hex())
+                    unk_length = struct.unpack("<I", reader.read(4))[0]
+                    reader.read(unk_length)
                     if chunk_count > 16:
                         # There should not be this many tagged chunks, must be a file error
                         raise Exception("Unable to parse PSX texture library, cannot find texture data")
@@ -186,17 +197,20 @@ class Window(QMainWindow, Ui_MainWindow):
 
             # Now we are at the model names list - if there are any models
             for i in range(mesh_count):
-                r.read(4)
+                reader.read(4)
 
-            print("we are at: {}".format(hex(r.tell())))
-            num_tex = struct.unpack("<I", r.read(4))[0]
-            self.fileTable.setItem(file_index, 1, QTableWidgetItem("{}".format(num_tex)))
-            p("Num textures: {}", num_tex)
+            # Print position where texture data starts
+            print("we are at: {}".format(hex(reader.tell())))
+
+            # Read number of textures
+            num_tex = struct.unpack("<I", reader.read(4))[0]
+            printer("Num textures: {}", num_tex)
             TEXPSX_DATA["num_tex"] = num_tex
+            self.fileTable.setItem(file_index, 1, QTableWidgetItem("{}".format(num_tex)))
 
             tex_names = []
             for i in range(num_tex):
-                tex_names.append(struct.unpack("<I", r.read(4))[0])
+                tex_names.append(struct.unpack("<I", reader.read(4))[0])
             TEXPSX_DATA["tex_names"] = tex_names
 
             # -------------------------------------------------
@@ -204,43 +218,43 @@ class Window(QMainWindow, Ui_MainWindow):
             # -------------------------------------------------
 
             # Read 16-color palettes
-            num_4bit = struct.unpack("<I", r.read(4))[0]
-            p("Num 16-color tex: {}", num_4bit)
+            num_4bit = struct.unpack("<I", reader.read(4))[0]
+            printer("Num 16-color tex: {}", num_4bit)
             palette_4bit = []
             for i in range(num_4bit):
-                this_pal = {"texid": struct.unpack("<I", r.read(4))[0]}
-                this_pal["colordata"] = struct.unpack("16H", r.read(16*2))
+                this_pal = {"texid": struct.unpack("<I", reader.read(4))[0]}
+                this_pal["colordata"] = struct.unpack("16H", reader.read(16*2))
                 palette_4bit.append(this_pal)
 
             # Read 256-color palettes
-            num_8bit = struct.unpack("<I", r.read(4))[0]
-            p("Num 256-color tex: {}", num_8bit)
+            num_8bit = struct.unpack("<I", reader.read(4))[0]
+            printer("Num 256-color tex: {}", num_8bit)
             palette_8bit = []
             for i in range(num_8bit):
-                this_pal = {"texid": struct.unpack("<I", r.read(4))[0]}
-                this_pal["colordata"] = struct.unpack("256H", r.read(256*2))
+                this_pal = {"texid": struct.unpack("<I", reader.read(4))[0]}
+                this_pal["colordata"] = struct.unpack("256H", reader.read(256*2))
                 palette_8bit.append(this_pal)
 
-            num_actual_tex = struct.unpack("<I", r.read(4))[0]
-            p("Num actual textures: {}", num_actual_tex)
+            num_actual_tex = struct.unpack("<I", reader.read(4))[0]
+            printer("Num actual textures: {}", num_actual_tex)
             # Set the number of textures for this file
             self.fileTable.setItem(file_index, 1, QTableWidgetItem("{}".format(num_actual_tex)))
-            p("I am at: {}", hex(r.tell()))
+            printer("I am at: {}", hex(reader.tell()))
 
             for i in range(num_actual_tex):
                 # Maybe THPS2 beta only? 4-byte blocks that seem meaningless
-                r.read(4)
+                reader.read(4)
 
-            p("I am at: {}", hex(r.tell()))
+            printer("I am at: {}", hex(reader.tell()))
             TEXPSX_DATA["texinfo"] = []
             for i in range(num_actual_tex):
-                tex_unk1 = struct.unpack("<I", r.read(4))[0]
-                tex_palsize = struct.unpack("<I", r.read(4))[0]
-                tex_hash = struct.unpack("<I", r.read(4))[0]
-                tex_index = struct.unpack("<I", r.read(4))[0]
-                tex_width = struct.unpack("<H", r.read(2))[0]
-                tex_height = struct.unpack("<H", r.read(2))[0]
-                p("tex index: {}, palette: {}, tex dimensions: {} {}", tex_index, tex_palsize, tex_width, tex_height)
+                tex_unk1 = struct.unpack("<I", reader.read(4))[0]
+                tex_palsize = struct.unpack("<I", reader.read(4))[0]
+                tex_hash = struct.unpack("<I", reader.read(4))[0]
+                tex_index = struct.unpack("<I", reader.read(4))[0]
+                tex_width = struct.unpack("<H", reader.read(2))[0]
+                tex_height = struct.unpack("<H", reader.read(2))[0]
+                printer("tex_unk1: {}, tex index: {}, palette: {}, tex dimensions: {} {}", tex_unk1, tex_index, tex_palsize, tex_width, tex_height)
                 tex_hashes[i] = tex_names[i]  # tex_hash
                 TEXPSX_DATA["texinfo"].append({
                     "palette": tex_palsize, "hash": tex_hash, "index": tex_index, "width": tex_width, "height": tex_height
@@ -248,36 +262,53 @@ class Window(QMainWindow, Ui_MainWindow):
 
                 # Now read the raw texture data
                 if tex_palsize == 16:
-                    padwidth = (tex_width+0x3) & ~0x3
-                    padwidth >>= 1
-                    reallen = (padwidth*tex_height)
-                    pal_indices = r.read(reallen)  # Just read for now
+                    pad_width = (tex_width + 0x3) & ~0x3
+                    pad_width >>= 1
+                    real_len = (pad_width * tex_height)
+                    pal_indices = reader.read(real_len)  # Just read for now
+
+                    # inc 1
+                    pad_width1 = (tex_width + 0x7) & ~0x3
+                    pad_width1 >>= 1
+                    real_len1 = (pad_width * tex_height)
+
+                    # dec 1
+                    pad_width2 = (tex_width + 0x2) & ~0x3
+                    pad_width2 >>= 1
+                    real_len2 = (pad_width * tex_height)
+
+                    printer("pad_width: {}, real_len: {}", pad_width, real_len)
+                    printer("+1: pad_width: {}, real_len: {}", pad_width1, real_len1)
+                    printer("-1: pad_width: {}, real_len: {}", pad_width2, real_len2)
+
                     # Find the palette and build the image
                     for pal in palette_4bit:
                         if pal["texid"] == tex_hash:
                             pixels = [None] * (tex_width * tex_height)
                             for y in range(tex_height):
                                 for x in range(tex_width):
-                                    v = (pal_indices[y*padwidth+(x >> 1)] >> ((x & 0x1)*4)) & 0xF
-                                    c = pal["colordata"][v]
-                                    px = self.ps1_to_32bpp(c)
-                                    pixels[y*tex_width-x] = px
+                                    v = (pal_indices[y * pad_width + (x >> 1)] >> ((x & 0x1) * 4)) & 0xF
+                                    color = pal["colordata"][v]
+                                    pixel = self.ps1_to_32bpp(color)
+                                    pixels[y * tex_width - x] = pixel
+                            printer("Finished reading texture {}. I am at: {}", tex_index, hex(reader.tell()))
                             self.writeToPng(filename, tex_hash, tex_width, tex_height, pixels)
-
+                            break
                 elif tex_palsize == 256:
-                    padwidth = (tex_width+0x1) & ~0x1
-                    reallen = (padwidth*tex_height)
-                    pal_indices = r.read(reallen)  # Just read for now
+                    pad_width = (tex_width + 0x1) & ~0x1
+                    real_len = (pad_width * tex_height)
+                    pal_indices = reader.read(real_len)  # Just read for now
                     # Find the palette and build the image
                     for pal in palette_8bit:
                         if pal["texid"] == tex_hash:
                             pixels = [None] * (tex_width * tex_height)
                             for y in range(tex_height):
                                 for x in range(tex_width):
-                                    v = (pal_indices[y*padwidth+x]) & 0xFF
-                                    c = pal["colordata"][v]
-                                    px = self.ps1_to_32bpp(c)
-                                    pixels[y*tex_width-x] = px
+                                    v = (pal_indices[y * pad_width + x]) & 0xFF
+                                    color = pal["colordata"][v]
+                                    pixel = self.ps1_to_32bpp(color)
+                                    pixels[y * tex_width - x] = pixel
+                            printer("Finished reading texture {}. I am at: {}", tex_index, hex(reader.tell()))
                             self.writeToPng(filename, tex_hash, tex_width, tex_height, pixels)
                             break
             if num_actual_tex > 0:
