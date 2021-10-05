@@ -1,6 +1,5 @@
 import traceback
 import os
-import errno
 import struct
 import sys
 import png
@@ -150,6 +149,7 @@ class Window(QMainWindow, Ui_MainWindow):
         printer = Printer()
         printer.on = True
         input_file = os.path.join(directory, filename)
+        textures_written = 0
 
         tex_hashes = {}
         with open(input_file, "rb") as input:
@@ -206,7 +206,7 @@ class Window(QMainWindow, Ui_MainWindow):
             num_tex = struct.unpack("<I", reader.read(4))[0]
             printer("Num textures: {}", num_tex)
             TEXPSX_DATA["num_tex"] = num_tex
-            self.fileTable.setItem(file_index, 1, QTableWidgetItem("{}".format(num_tex)))
+            self.fileTable.setItem(file_index, 1, QTableWidgetItem(str(num_tex)))
 
             tex_names = []
             for i in range(num_tex):
@@ -238,7 +238,7 @@ class Window(QMainWindow, Ui_MainWindow):
             num_actual_tex = struct.unpack("<I", reader.read(4))[0]
             printer("Num actual textures: {}", num_actual_tex)
             # Set the number of textures for this file
-            self.fileTable.setItem(file_index, 1, QTableWidgetItem("{}".format(num_actual_tex)))
+            self.fileTable.setItem(file_index, 1, QTableWidgetItem(str(num_actual_tex)))
             printer("I am at: {}", hex(reader.tell()))
 
             for i in range(num_actual_tex):
@@ -254,32 +254,24 @@ class Window(QMainWindow, Ui_MainWindow):
                 tex_index = struct.unpack("<I", reader.read(4))[0]
                 tex_width = struct.unpack("<H", reader.read(2))[0]
                 tex_height = struct.unpack("<H", reader.read(2))[0]
-                printer("tex_unk1: {}, tex index: {}, palette: {}, tex dimensions: {} {}", tex_unk1, tex_index, tex_palsize, tex_width, tex_height)
+                printer("{}: tex_unk1: {}, palette: {}, tex dimensions: {} {}", tex_index, tex_unk1, tex_palsize, tex_width, tex_height)
                 tex_hashes[i] = tex_names[i]  # tex_hash
                 TEXPSX_DATA["texinfo"].append({
                     "palette": tex_palsize, "hash": tex_hash, "index": tex_index, "width": tex_width, "height": tex_height
                 })
 
+                tex_height_is_odd = tex_height % 2 != 0
+
                 # Now read the raw texture data
                 if tex_palsize == 16:
                     pad_width = (tex_width + 0x3) & ~0x3
                     pad_width >>= 1
-                    real_len = (pad_width * tex_height)
+                    if(tex_height_is_odd):
+                        extra_padding = 2 if pad_width % 4 != 0 else 0
+                    else:
+                        extra_padding = 0
+                    real_len = (pad_width * tex_height) + extra_padding
                     pal_indices = reader.read(real_len)  # Just read for now
-
-                    # inc 1
-                    pad_width1 = (tex_width + 0x7) & ~0x3
-                    pad_width1 >>= 1
-                    real_len1 = (pad_width * tex_height)
-
-                    # dec 1
-                    pad_width2 = (tex_width + 0x2) & ~0x3
-                    pad_width2 >>= 1
-                    real_len2 = (pad_width * tex_height)
-
-                    printer("pad_width: {}, real_len: {}", pad_width, real_len)
-                    printer("+1: pad_width: {}, real_len: {}", pad_width1, real_len1)
-                    printer("-1: pad_width: {}, real_len: {}", pad_width2, real_len2)
 
                     # Find the palette and build the image
                     for pal in palette_4bit:
@@ -291,12 +283,17 @@ class Window(QMainWindow, Ui_MainWindow):
                                     color = pal["colordata"][v]
                                     pixel = self.ps1_to_32bpp(color)
                                     pixels[y * tex_width - x] = pixel
-                            printer("Finished reading texture {}. I am at: {}", tex_index, hex(reader.tell()))
+                            printer("{}: Finished reading texture. I am at: {}", tex_index, hex(reader.tell()))
                             self.writeToPng(filename, tex_hash, tex_width, tex_height, pixels)
+                            textures_written += 1
                             break
                 elif tex_palsize == 256:
                     pad_width = (tex_width + 0x1) & ~0x1
-                    real_len = (pad_width * tex_height)
+                    if(tex_height_is_odd):
+                        extra_padding = 2 if pad_width % 4 != 0 else 0
+                    else:
+                        extra_padding = 0
+                    real_len = (pad_width * tex_height) + extra_padding
                     pal_indices = reader.read(real_len)  # Just read for now
                     # Find the palette and build the image
                     for pal in palette_8bit:
@@ -308,13 +305,18 @@ class Window(QMainWindow, Ui_MainWindow):
                                     color = pal["colordata"][v]
                                     pixel = self.ps1_to_32bpp(color)
                                     pixels[y * tex_width - x] = pixel
-                            printer("Finished reading texture {}. I am at: {}", tex_index, hex(reader.tell()))
+                            printer("{}: Finished reading texture. I am at: {}", tex_index, hex(reader.tell()))
                             self.writeToPng(filename, tex_hash, tex_width, tex_height, pixels)
+                            textures_written += 1
                             break
             if num_actual_tex > 0:
-                self.fileTable.setItem(file_index, 2, QTableWidgetItem("OK"))
+                self.fileTable.setItem(file_index, 2, QTableWidgetItem(str(textures_written)))
+                if(num_actual_tex == textures_written):
+                    self.fileTable.setItem(file_index, 3, QTableWidgetItem("OK"))
+                else:
+                    self.fileTable.setItem(file_index, 3, QTableWidgetItem("ERROR"))
             else:
-                self.fileTable.setItem(file_index, 2, QTableWidgetItem("SKIPPED"))
+                self.fileTable.setItem(file_index, 3, QTableWidgetItem("SKIPPED"))
         print("Complete!")
 
 
