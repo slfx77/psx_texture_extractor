@@ -14,7 +14,7 @@
    <string>PSX Texture Extractor v0.3</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>12</x>
@@ -140,7 +140,7 @@
         <bool>true</bool>
        </property>
        <property name="columnCount">
-        <number>3</number>
+        <number>4</number>
        </property>
        <column>
         <property name="text">
@@ -149,7 +149,12 @@
        </column>
        <column>
         <property name="text">
-         <string>Textures</string>
+         <string>Textures Read</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>Textures Written</string>
         </property>
        </column>
        <column>
