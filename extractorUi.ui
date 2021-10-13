@@ -11,171 +11,165 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>PSX Texture Extractor v0.3</string>
+   <string>PSX Texture Extractor v0.4</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QWidget" name="layoutWidget">
-    <property name="geometry">
-     <rect>
-      <x>12</x>
-      <y>12</y>
-      <width>621</width>
-      <height>441</height>
-     </rect>
-    </property>
-    <layout class="QVBoxLayout" name="verticalLayout">
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayout">
-       <item>
-        <widget class="QLabel" name="inputLabel">
-         <property name="minimumSize">
-          <size>
-           <width>81</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>Input Directory</string>
-         </property>
-         <property name="buddy">
-          <cstring>inputPath</cstring>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLineEdit" name="inputPath">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="readOnly">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="inputBrowse">
-         <property name="text">
-          <string>Browse...</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <item>
-        <widget class="QLabel" name="outputLabel">
-         <property name="minimumSize">
-          <size>
-           <width>81</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>Output Directory</string>
-         </property>
-         <property name="buddy">
-          <cstring>outputPath</cstring>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLineEdit" name="outputPath">
-         <property name="readOnly">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="outputBrowse">
-         <property name="text">
-          <string>Browse...</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayout_3">
-       <item>
-        <widget class="QPushButton" name="extractButton">
-         <property name="enabled">
-          <bool>false</bool>
-         </property>
-         <property name="text">
-          <string>Extract</string>
-         </property>
-         <property name="checkable">
-          <bool>false</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QCheckBox" name="toggleSubDirs">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="toolTip">
-          <string>When selected, a subdirectory will be created for each PSX file.</string>
-         </property>
-         <property name="toolTipDuration">
-          <number>-1</number>
-         </property>
-         <property name="text">
-          <string>Create Subdirectories</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </item>
-     <item>
-      <widget class="QTableWidget" name="fileTable">
-       <property name="alternatingRowColors">
-        <bool>true</bool>
-       </property>
-       <property name="sortingEnabled">
-        <bool>true</bool>
-       </property>
-       <property name="columnCount">
-        <number>4</number>
-       </property>
-       <column>
-        <property name="text">
-         <string>File Name</string>
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QLabel" name="inputLabel">
+          <property name="minimumSize">
+           <size>
+            <width>81</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Input Directory</string>
+          </property>
+          <property name="buddy">
+           <cstring>inputPath</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="inputPath">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="inputBrowse">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QLabel" name="outputLabel">
+          <property name="minimumSize">
+           <size>
+            <width>81</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Output Directory</string>
+          </property>
+          <property name="buddy">
+           <cstring>outputPath</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="outputPath">
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="outputBrowse">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_3">
+        <item>
+         <widget class="QPushButton" name="extractButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Extract</string>
+          </property>
+          <property name="checkable">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="toggleSubDirs">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>When selected, a subdirectory will be created for each PSX file.</string>
+          </property>
+          <property name="toolTipDuration">
+           <number>-1</number>
+          </property>
+          <property name="text">
+           <string>Create Subdirectories</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QTableWidget" name="fileTable">
+        <property name="alternatingRowColors">
+         <bool>true</bool>
         </property>
-       </column>
-       <column>
-        <property name="text">
-         <string>Textures Read</string>
+        <property name="sortingEnabled">
+         <bool>true</bool>
         </property>
-       </column>
-       <column>
-        <property name="text">
-         <string>Textures Written</string>
+        <property name="columnCount">
+         <number>4</number>
         </property>
-       </column>
-       <column>
-        <property name="text">
-         <string>Status</string>
+        <column>
+         <property name="text">
+          <string>File Name</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Textures Read</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Textures Written</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Status</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+      <item>
+       <widget class="QProgressBar" name="progressBar">
+        <property name="value">
+         <number>0</number>
         </property>
-       </column>
-      </widget>
-     </item>
-     <item>
-      <widget class="QProgressBar" name="progressBar">
-       <property name="value">
-        <number>0</number>
-       </property>
-       <property name="textVisible">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
+        <property name="textVisible">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
@@ -189,18 +183,18 @@
  <resources/>
  <connections>
   <connection>
-   <sender>inputBrowse</sender>
+   <sender>outputBrowse</sender>
    <signal>clicked()</signal>
    <receiver>MainWindow</receiver>
-   <slot>inputBrowseClicked()</slot>
+   <slot>outputBrowseClicked()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>410</x>
-     <y>22</y>
+     <x>532</x>
+     <y>54</y>
     </hint>
     <hint type="destinationlabel">
-     <x>269</x>
-     <y>139</y>
+     <x>288</x>
+     <y>156</y>
     </hint>
    </hints>
   </connection>
@@ -221,18 +215,18 @@
    </hints>
   </connection>
   <connection>
-   <sender>outputBrowse</sender>
+   <sender>inputBrowse</sender>
    <signal>clicked()</signal>
    <receiver>MainWindow</receiver>
-   <slot>outputBrowseClicked()</slot>
+   <slot>inputBrowseClicked()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>532</x>
-     <y>54</y>
+     <x>410</x>
+     <y>22</y>
     </hint>
     <hint type="destinationlabel">
-     <x>288</x>
-     <y>156</y>
+     <x>269</x>
+     <y>139</y>
     </hint>
    </hints>
   </connection>
