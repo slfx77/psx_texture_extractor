@@ -16,7 +16,7 @@ This program can be running `py main.py` in the directory it is extracted to. Th
 
 # Credits
 
-This program is contains code from the following other projects:
+This program contains code from the following other projects:
 
 - [io_thps_scene](https://github.com/denetii/io_thps_scene), a Blender plugin for multiple formats used in the Tony Hawk series of games as well as other games developed by Neversoft which use the same formats.
 
