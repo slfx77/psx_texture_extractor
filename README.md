@@ -2,7 +2,7 @@
 
 - python3
 - pyqt5 - can be installed with `pip install PyQt5`
-- png.py - Included
+- pypng - Included
 
 # Usage Instructions
 
