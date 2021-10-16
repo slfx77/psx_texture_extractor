@@ -1,4 +1,7 @@
 __pycache__
 *.psx
 *.PSX
+*.png
+*.bmp
 *.exe
+*.log

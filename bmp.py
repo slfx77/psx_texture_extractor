@@ -61,21 +61,33 @@ def write_bmp_file(buffer, width, height, file_name, palette):
     alpha_mask = 0
 
     # 4444
+
     if palette == 770 or palette == 2306:
         extracted.image.red_mask = 0x0F00
         extracted.image.green_mask = 0xF0
         extracted.image.blue_mask = 0xF
         extracted.image.alpha_mask = 0xF000
+
+    # 5551
+    # Alpha is either 0 or 128 for some reason
+
     elif palette == 768:
         extracted.image.red_mask = 0x7C00
         extracted.image.green_mask = 0x3E0
         extracted.image.blue_mask = 0x1F
         extracted.image.alpha_mask = 0x8000
+
+    # 565
+    # Pixels are not scrambled!
+
     elif palette == 2305:
         extracted.image.red_mask = 0xF800
         extracted.image.green_mask = 0x7E0
         extracted.image.blue_mask = 0x1F
         extracted.image.alpha_mask = 0
+
+    # OTHER
+
     else:
         extracted.image.red_mask = red_mask
         extracted.image.green_mask = green_mask

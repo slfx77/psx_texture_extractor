@@ -80,6 +80,9 @@ class Ui_MainWindow(object):
         self.fileTable.setHorizontalHeaderItem(2, item)
         item = QtWidgets.QTableWidgetItem()
         self.fileTable.setHorizontalHeaderItem(3, item)
+        self.fileTable.horizontalHeader().setVisible(True)
+        self.fileTable.horizontalHeader().setCascadingSectionResizes(False)
+        self.fileTable.horizontalHeader().setDefaultSectionSize(120)
         self.verticalLayout.addWidget(self.fileTable)
         self.progressBar = QtWidgets.QProgressBar(self.centralwidget)
         self.progressBar.setProperty("value", 0)
@@ -107,7 +110,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "PSX Texture Extractor v0.4"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "PSX Texture Extractor v0.5"))
         self.inputLabel.setText(_translate("MainWindow", "Input Directory"))
         self.inputBrowse.setText(_translate("MainWindow", "Browse..."))
         self.outputLabel.setText(_translate("MainWindow", "Output Directory"))
@@ -119,8 +122,8 @@ class Ui_MainWindow(object):
         item = self.fileTable.horizontalHeaderItem(0)
         item.setText(_translate("MainWindow", "File Name"))
         item = self.fileTable.horizontalHeaderItem(1)
-        item.setText(_translate("MainWindow", "Textures Read"))
+        item.setText(_translate("MainWindow", "Number of Textures"))
         item = self.fileTable.horizontalHeaderItem(2)
-        item.setText(_translate("MainWindow", "Textures Written"))
+        item.setText(_translate("MainWindow", "Textures Extracted"))
         item = self.fileTable.horizontalHeaderItem(3)
         item.setText(_translate("MainWindow", "Status"))

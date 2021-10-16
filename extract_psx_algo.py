@@ -123,8 +123,10 @@ def decompress_texture(reader, pvr):
     if (actual_height == 0):
         return None
 
-    # 2305 and 2306 are special in-sequence palettes
+    # 2305 and 2306 are special in-sequence palettes (901, 902 in hex)
     # (There's probably a bit that sets these, haven't looked at it)
+    # Adding the unsupported ones to see if they work as-is
+    # in_sequence_palettes = [64, 65, 66, 1025, 2305, 2306, 3329]
     in_sequence = (pvr.palette == 2305) or (pvr.palette == 2306)
 
     if (in_sequence):
@@ -163,7 +165,7 @@ def decompress_texture(reader, pvr):
                 if (cur_height >= (pvr.height >> 1)):
                     break
 
-        return texture_buffer
+    return texture_buffer
 
 
 def extract_texture(ui, reader, filename):
@@ -183,9 +185,9 @@ def extract_texture(ui, reader, filename):
     pvr.size = struct.unpack("<I", reader.read(4))[0]
 
     # skip unsupported textures
-    if (pvr.palette & 0xFF00) != 0x300:
-        printer("Not implement yet: {}.", format(hex(pvr.palette)))
-        return False
+    # if (pvr.palette & 0xFF00) != 0x300:
+    #     printer("Not implemented yet: {}.", format(hex(pvr.palette)))
+    #     return False
 
     decompressed = decompress_texture(reader, pvr)
     export_to_file(ui, filename, decompressed, pvr, texture_off)
