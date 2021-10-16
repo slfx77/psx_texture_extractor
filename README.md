@@ -13,6 +13,7 @@ This program can be running `py main.py` in the directory it is extracted to. Th
 - There is no error handling at the moment for when the folder that has been selected is then deleted. The program will crash in this scenario.
 - The program is single threaded and will freeze while extraction is ongoing.
 - Not all 16-bit palettes are currently supported. As such, these textures may fail to extract.
+- Some 16-bit textures are read incorrectly and will not appear correct when exported.
 
 # Credits
 
