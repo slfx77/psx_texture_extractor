@@ -8,11 +8,12 @@ from bmp import write_bmp_file
 from moser import bruijn
 from PyQt5.QtWidgets import (QTableWidgetItem)
 from helpers import Printer
+from rawtex_algo import do_convert
 
 PAD_HEX = 8
 printer = Printer()
 printer.on = True
-print_traceback = False
+print_traceback = True
 
 
 class Mem:
@@ -91,17 +92,40 @@ def get_textures_add(reader, num_textures):
 
 def get_color(reader, cur_texture, color_offset):
     palette_offset = 0
+    read = Color()
+
     reader.seek(((cur_texture + 0x800) + color_offset), SEEK_SET)
     palette_offset = struct.unpack("<B", reader.read(1))[0]
-
-    read = Color()
     reader.seek(cur_texture + 8 * palette_offset, SEEK_SET)
+
     read.r = struct.unpack("<H", reader.read(2))[0]
     read.g = struct.unpack("<H", reader.read(2))[0]
     read.b = struct.unpack("<H", reader.read(2))[0]
     read.a = struct.unpack("<H", reader.read(2))[0]
 
     return read
+
+
+# def morton(t, sx, sy):
+#     num1 = 1
+#     num2 = 1
+#     num3 = t
+#     num4 = sx
+#     num5 = sy
+#     num6 = 0
+#     num7 = 0
+#     while (num4 > 1 or num5 > 1):
+#         if (num4 > 1):
+#             num6 += num2 * (num3 & 1)
+#             num3 >>= 1
+#             num2 *= 2
+#             num4 >>= 1
+#         if (num5 > 1):
+#             num7 += num1 * (num3 & 1)
+#             num3 >>= 1
+#             num1 *= 2
+#             num5 >>= 1
+#     return num7 * sx + num6
 
 
 def decompress_texture(reader, pvr):
@@ -126,11 +150,7 @@ def decompress_texture(reader, pvr):
 
     # 2305 and 2306 are special in-sequence palettes (901, 902 in hex)
     # (There's probably a bit that sets these, haven't looked at it)
-    # Adding the unsupported ones to see if they work as-is
-    # in_sequence_palettes = [64, 65, 66, 1025, 2305, 2306, 3329]
-    in_sequence = (pvr.palette == 2305) or (pvr.palette == 2306)
-
-    if (in_sequence):
+    if ((pvr.palette & 0xFF00) == 0x900):
         counter = 0
         goal = (pvr.width * pvr.height)
 
@@ -145,41 +165,33 @@ def decompress_texture(reader, pvr):
     else:
         cur_height = 0
         cur_width = 0
-        v30 = 0
+        color_offset = 0
 
-        for i in range(pvr.width * pvr.height):
-            color_offset = pymorton.interleave(i, pvr.height, pvr.width)
-            color = get_color(reader, cur_texture, color_offset)
+        while True:
+            cur_width = 0
+            if (pvr.width >> 1):
+                while True:
+                    color_offset = pymorton.interleave(cur_height, cur_width)
+                    color = get_color(reader, cur_texture, color_offset)
 
-            texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.r
-            texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.b
-            texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.g
-            texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.a
+                    texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.r
+                    texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.b
+                    texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.g
+                    texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.a
 
-        # while True:
-        #     cur_width = 0
-        #     if (pvr.width >> 1):
-        #         while True:
-        #             v30 = bruijn[v20 & cur_height] | 2 * bruijn[v20 & cur_width] | ((~v20 & (cur_height | cur_width)) << v32)
-        #             v31 = get_color(reader, cur_texture, v30)
-
-        #             texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = v31.r
-        #             texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = v31.b
-        #             texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = v31.g
-        #             texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = v31.a
-
-        #             cur_width += 1
-        #             if (cur_width >= (pvr.width >> 1)):
-        #                 break
-        #         cur_height += 1
-        #         if (cur_height >= (pvr.height >> 1)):
-        #             break
+                    cur_width += 1
+                    if (cur_width >= (pvr.width >> 1)):
+                        break
+                cur_height += 1
+                if (cur_height >= (pvr.height >> 1)):
+                    break
 
     return texture_buffer
 
 
-def extract_texture(ui, reader, filename):
+def extract_texture(ui, reader, filename, tex_num):
     texture_off = struct.unpack("<I", reader.read(4))[0]
+    printer("{} texture {}: {}", filename, tex_num, hex(texture_off))
 
     # save current offset
     current_off = reader.tell()
@@ -194,10 +206,13 @@ def extract_texture(ui, reader, filename):
     pvr.palette = struct.unpack("<I", reader.read(4))[0]
     pvr.size = struct.unpack("<I", reader.read(4))[0]
 
+    supported_palettes = [0x100, 0x300, 0x400, 0x900, 0xd00]
+    # unsupported_palettes = [0x100, 0x400, 0xd00]
+
     # skip unsupported textures
-    # if (pvr.palette & 0xFF00) != 0x300:
-    #     printer("Not implemented yet: {}.", format(hex(pvr.palette)))
-    #     return False
+    if (pvr.palette & 0xFF00) not in supported_palettes:
+        printer("Not implemented yet: {}.", format(hex(pvr.palette)))
+        return False
 
     decompressed = decompress_texture(reader, pvr)
     export_to_file(ui, filename, decompressed, pvr, texture_off)
@@ -229,7 +244,7 @@ def extract_textures(ui, filename, directory, file_index):
     v13 = 0
     v35 = 0
     v37 = 0
-    v41 = 0
+    num_textures_offset = 0
     v101 = 0
     num_textures = 0
     textures_written = 0
@@ -241,21 +256,21 @@ def extract_textures(ui, filename, directory, file_index):
         v35 = get_v35(v13, v101, mem.add1[0] - 4)
 
         v37 = v35 + 4
-        v41 = v37 + 4
+        num_textures_offset = v37 + 4
 
-        num_textures = get_num_textures(input, v41)
+        num_textures = get_num_textures(input, num_textures_offset)
         ui.fileTable.setItem(file_index, 1, QTableWidgetItem(str(num_textures)))
 
         printer("ADD1: {1:0{0}X} {2:0{0}X} {3:0{0}X}", PAD_HEX, mem.add1[0], mem.add1[1], mem.add1[2])
-        printer("v13:  {1:0{0}X} v101: {2:0{0}X} v35: {3:0{0}X}\nv41:  {4:0{0}X}", PAD_HEX, v13, v101, v35, v41)
+        printer("v13:  {1:0{0}X} v101: {2:0{0}X} v35: {3:0{0}X}\nv41:  {4:0{0}X}", PAD_HEX, v13, v101, v35, num_textures_offset)
         printer("There are {} textures.\n", num_textures)
 
-        for _ in range(num_textures):
+        for i in range(num_textures):
             try:
-                if extract_texture(ui, input, filename):
+                if extract_texture(ui, input, filename, i):
                     textures_written += 1
             except Exception as e:
-                printer("Tried proceesing an unsupported texture in {}. The error was: {}", filename, e)
+                printer("Tried proceesing an unsupported texture in {}. The error was: {}\nI am at: {}", filename, e, hex(input.tell()))
                 if print_traceback:
                     traceback.print_exc()
 
