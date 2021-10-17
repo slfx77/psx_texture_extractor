@@ -1,6 +1,7 @@
 import os
 import struct
 import traceback
+import pymorton
 
 from os import SEEK_SET
 from bmp import write_bmp_file
@@ -10,7 +11,7 @@ from helpers import Printer
 
 PAD_HEX = 8
 printer = Printer()
-printer.on = False
+printer.on = True
 print_traceback = False
 
 
@@ -88,13 +89,13 @@ def get_textures_add(reader, num_textures):
         print("{}: {}\n", i + 1, hex(tmp))
 
 
-def get_v31(reader, cur_texture, v30):
-    color_offset = 0
-    reader.seek(((cur_texture + 0x800) + v30), SEEK_SET)
-    color_offset = struct.unpack("<B", reader.read(1))[0]
+def get_color(reader, cur_texture, color_offset):
+    palette_offset = 0
+    reader.seek(((cur_texture + 0x800) + color_offset), SEEK_SET)
+    palette_offset = struct.unpack("<B", reader.read(1))[0]
 
     read = Color()
-    reader.seek(cur_texture + 8 * color_offset, SEEK_SET)
+    reader.seek(cur_texture + 8 * palette_offset, SEEK_SET)
     read.r = struct.unpack("<H", reader.read(2))[0]
     read.g = struct.unpack("<H", reader.read(2))[0]
     read.b = struct.unpack("<H", reader.read(2))[0]
@@ -146,24 +147,33 @@ def decompress_texture(reader, pvr):
         cur_width = 0
         v30 = 0
 
-        while True:
-            cur_width = 0
-            if (pvr.width >> 1):
-                while True:
-                    v30 = bruijn[v20 & cur_height] | 2 * bruijn[v20 & cur_width] | ((~v20 & (cur_height | cur_width)) << v32)
-                    v31 = get_v31(reader, cur_texture, v30)
+        for i in range(pvr.width * pvr.height):
+            color_offset = pymorton.interleave(i, pvr.height, pvr.width)
+            color = get_color(reader, cur_texture, color_offset)
 
-                    texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = v31.r
-                    texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = v31.b
-                    texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = v31.g
-                    texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = v31.a
+            texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.r
+            texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.b
+            texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.g
+            texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.a
 
-                    cur_width += 1
-                    if (cur_width >= (pvr.width >> 1)):
-                        break
-                cur_height += 1
-                if (cur_height >= (pvr.height >> 1)):
-                    break
+        # while True:
+        #     cur_width = 0
+        #     if (pvr.width >> 1):
+        #         while True:
+        #             v30 = bruijn[v20 & cur_height] | 2 * bruijn[v20 & cur_width] | ((~v20 & (cur_height | cur_width)) << v32)
+        #             v31 = get_color(reader, cur_texture, v30)
+
+        #             texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = v31.r
+        #             texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = v31.b
+        #             texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = v31.g
+        #             texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = v31.a
+
+        #             cur_width += 1
+        #             if (cur_width >= (pvr.width >> 1)):
+        #                 break
+        #         cur_height += 1
+        #         if (cur_height >= (pvr.height >> 1)):
+        #             break
 
     return texture_buffer
 
