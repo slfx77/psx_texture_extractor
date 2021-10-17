@@ -218,8 +218,8 @@ def extract_textures(ui, filename, directory, file_index):
                         pixels = [None] * (tex_width * tex_height)
                         for y in range(tex_height):
                             for x in range(tex_width):
-                                v = (pal_indices[y * pad_width + (x >> 1)] >> ((x & 0x1) * 4)) & 0xF
-                                color = pal["colordata"][v]
+                                color_index = (pal_indices[y * pad_width + (x >> 1)] >> ((x & 0x1) * 4)) & 0xF
+                                color = pal["colordata"][color_index]
                                 pixel = ps1_to_32bpp(color)
                                 pixels[y * tex_width - x] = pixel
                         printer("{}: Finished reading texture. I am at: {}", tex_index, hex(reader.tell()))
@@ -240,8 +240,8 @@ def extract_textures(ui, filename, directory, file_index):
                         pixels = [None] * (tex_width * tex_height)
                         for y in range(tex_height):
                             for x in range(tex_width):
-                                v = (pal_indices[y * pad_width + x]) & 0xFF
-                                color = pal["colordata"][v]
+                                color_index = (pal_indices[y * pad_width + x]) & 0xFF
+                                color = pal["colordata"][color_index]
                                 pixel = ps1_to_32bpp(color)
                                 pixels[y * tex_width - x] = pixel
                         printer("{}: Finished reading texture. I am at: {}", tex_index, hex(reader.tell()))
