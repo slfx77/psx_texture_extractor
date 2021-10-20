@@ -1,6 +1,5 @@
 import rawtex_options
 import struct
-import numpy
 
 
 def morton(t, sx, sy):
