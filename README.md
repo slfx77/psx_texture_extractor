@@ -1,8 +1,9 @@
 # Requirements
 
-- python3
-- pyqt5 - can be installed with `pip install PyQt5`
-- pypng - Included
+- [python3](https://www.python.org/)
+- [pyqt5](https://pypi.org/project/PyQt5/) - can be installed with `pip install PyQt5`
+- [pymorton](https://github.com/trevorprater/pymorton) - can be installed with `pip install pymorton`
+- [pypng](https://github.com/drj11/pypng) - Included
 
 # Usage Instructions
 
@@ -12,7 +13,6 @@ This program can be running `py main.py` in the directory it is extracted to. Th
 
 - There is no error handling at the moment for when the folder that has been selected is then deleted. The program will crash in this scenario.
 - The program is single threaded and will freeze while extraction is ongoing.
-- Not all 16-bit palettes are currently supported. As such, these textures may fail to extract.
 - Some 16-bit textures are read incorrectly and will not appear correct when exported.
 
 # Credits
@@ -22,5 +22,7 @@ This program contains code from the following other projects:
 - [io_thps_scene](https://github.com/denetii/io_thps_scene), a Blender plugin for multiple formats used in the Tony Hawk series of games as well as other games developed by Neversoft which use the same formats.
 
 - [psx_extractor](https://github.com/krystalgamer/spidey-tools/tree/master/psx_extractor), an extractor intended for the PC version of Spider-Man. This is used for the decoding of PSX files with 16-bit textures. I've also created a standalone clone in Python that can be found [here](https://github.com/slfx77/psx_extract_py).
+
+- [Rawtex](https://zenhax.com/viewtopic.php?t=7099), a multipurpose converter for raw texture files. Used to convert 16-bit textures with palette types 0x100-0x102 and 0xd01.
 
 - [pypng](https://github.com/drj11/pypng), used to write 4-bit and 8-bit textures to PNG files.
