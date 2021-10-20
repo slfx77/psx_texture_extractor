@@ -5,15 +5,14 @@ import pymorton
 
 from os import SEEK_SET
 from bmp import write_bmp_file
-from moser import bruijn
 from PyQt5.QtWidgets import (QTableWidgetItem)
 from helpers import Printer
 from rawtex_algo import do_convert
 
 PAD_HEX = 8
 printer = Printer()
-printer.on = True
-print_traceback = True
+printer.on = False
+print_traceback = False
 
 
 class Mem:
@@ -83,13 +82,6 @@ def get_num_textures(reader, v41):
     return struct.unpack("<I", reader.read(4))[0]
 
 
-def get_textures_add(reader, num_textures):
-    tmp = 0
-    for i in range(num_textures):
-        tmp = struct.unpack("<I", reader.read(4))[0]
-        print("{}: {}\n", i + 1, hex(tmp))
-
-
 def get_color(reader, cur_texture, color_offset):
     palette_offset = 0
     read = Color()
@@ -106,95 +98,76 @@ def get_color(reader, cur_texture, color_offset):
     return read
 
 
-# def morton(t, sx, sy):
-#     num1 = 1
-#     num2 = 1
-#     num3 = t
-#     num4 = sx
-#     num5 = sy
-#     num6 = 0
-#     num7 = 0
-#     while (num4 > 1 or num5 > 1):
-#         if (num4 > 1):
-#             num6 += num2 * (num3 & 1)
-#             num3 >>= 1
-#             num2 *= 2
-#             num4 >>= 1
-#         if (num5 > 1):
-#             num7 += num1 * (num3 & 1)
-#             num3 >>= 1
-#             num1 *= 2
-#             num5 >>= 1
-#     return num7 * sx + num6
-
-
-def decompress_texture(reader, pvr):
-    actual_width = pvr.width >> 1
-    actual_height = pvr.height >> 1
-    if (actual_width >= actual_height):
-        actual_width = pvr.height >> 1
-
-    v20 = actual_width - 1
-    v32 = 0
-    if (v20 & 1):
-        i = 1
-        while i & v20:
-            i *= 2
-            v32 += 1
-
+def decompress_sequenced(reader, pvr):
+    counter = 0
+    goal = (pvr.width * pvr.height)
     texture_buffer = [0xFF] * (pvr.width * pvr.height)
-    cur_texture = reader.tell()
 
-    if (actual_height == 0):
-        return None
-
-    # 2305 and 2306 are special in-sequence palettes (901, 902 in hex)
-    # (There's probably a bit that sets these, haven't looked at it)
-    if ((pvr.palette & 0xFF00) == 0x900):
-        counter = 0
-        goal = (pvr.width * pvr.height)
-
-        while True:
-            val_a = struct.unpack("<H", reader.read(2))[0]
-            texture_buffer[counter] = val_a
-            counter += 1
-            if (counter >= goal):
-                break
-
-    # Scrambled / compressed
-    else:
-        cur_height = 0
-        cur_width = 0
-        color_offset = 0
-
-        while True:
-            cur_width = 0
-            if (pvr.width >> 1):
-                while True:
-                    color_offset = pymorton.interleave(cur_height, cur_width)
-                    color = get_color(reader, cur_texture, color_offset)
-
-                    texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.r
-                    texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.b
-                    texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.g
-                    texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.a
-
-                    cur_width += 1
-                    if (cur_width >= (pvr.width >> 1)):
-                        break
-                cur_height += 1
-                if (cur_height >= (pvr.height >> 1)):
-                    break
+    while True:
+        val_a = struct.unpack("<H", reader.read(2))[0]
+        texture_buffer[counter] = val_a
+        counter += 1
+        if (counter >= goal):
+            break
 
     return texture_buffer
 
 
-def extract_texture(ui, reader, filename, tex_num):
-    texture_off = struct.unpack("<I", reader.read(4))[0]
-    printer("{} texture {}: {}", filename, tex_num, hex(texture_off))
+def decompress_scrambled(reader, pvr, cur_texture):
+    cur_height = 0
+    cur_width = 0
+    color_offset = 0
+    texture_buffer = [0xFF] * (pvr.width * pvr.height)
 
-    # save current offset
-    current_off = reader.tell()
+    while True:
+        cur_width = 0
+        if (pvr.width >> 1):
+            while True:
+                color_offset = pymorton.interleave(cur_height, cur_width)
+                color = get_color(reader, cur_texture, color_offset)
+
+                texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.r
+                texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.b
+                texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.g
+                texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.a
+
+                cur_width += 1
+                if (cur_width >= (pvr.width >> 1)):
+                    break
+            cur_height += 1
+            if (cur_height >= (pvr.height >> 1)):
+                break
+
+    return texture_buffer
+
+
+def decompress_texture(reader, pvr):
+    if (pvr.height >> 1 == 0):
+        return None
+
+    cur_texture = reader.tell()
+    printer("Image data starts at: {}", hex(cur_texture))
+
+    # 2305 and 2306 are special in-sequence palettes (901, 902 in hex)
+    # (There's probably a bit that sets these, haven't looked at it)
+    if ((pvr.palette & 0xFF00) in [0x900]):
+        return decompress_sequenced(reader, pvr)
+    elif((pvr.palette & 0xFF00) in [0x100, 0xd00]):
+        return do_convert(reader, pvr)
+    # Scrambled / compressed
+    else:
+        return decompress_scrambled(reader, pvr, cur_texture)
+
+
+def extract_texture(ui, reader, filename, tex_num, offset=0):
+
+    if(offset == 0):
+        texture_off = struct.unpack("<I", reader.read(4))[0]
+
+        # save current offset
+        current_off = reader.tell()
+    else:
+        texture_off = offset
 
     pvr = PSXPVR()
     reader.seek(texture_off, SEEK_SET)
@@ -206,8 +179,9 @@ def extract_texture(ui, reader, filename, tex_num):
     pvr.palette = struct.unpack("<I", reader.read(4))[0]
     pvr.size = struct.unpack("<I", reader.read(4))[0]
 
+    printer("{} texture {} ({}x{}, palette {}): {}", filename, tex_num + 1, pvr.width, pvr.height, hex(pvr.palette), hex(texture_off))
+
     supported_palettes = [0x100, 0x300, 0x400, 0x900, 0xd00]
-    # unsupported_palettes = [0x100, 0x400, 0xd00]
 
     # skip unsupported textures
     if (pvr.palette & 0xFF00) not in supported_palettes:
@@ -217,7 +191,11 @@ def extract_texture(ui, reader, filename, tex_num):
     decompressed = decompress_texture(reader, pvr)
     export_to_file(ui, filename, decompressed, pvr, texture_off)
 
-    reader.seek(current_off, SEEK_SET)
+    if(offset == 0):
+        reader.seek(current_off, SEEK_SET)
+    else:
+        reader.seek(texture_off + pvr.size + 28, SEEK_SET)
+
     return True
 
 

@@ -4,6 +4,7 @@ import png
 
 from PyQt5.QtWidgets import (QTableWidgetItem)
 from helpers import Printer
+from extract_psx_algo import extract_texture
 
 printer = Printer()
 printer.on = False
@@ -96,17 +97,12 @@ def extract_textures(ui, filename, directory, file_index):
     with open(input_file, "rb") as reader:
         # Read the file header and determine the number of objects, pointer to tagged chunks
         magic = reader.read(4)
-
-        # Search for magic numbers, exit if not found(?)
         assert magic == b"\x04\x00\x02\x00" or magic == b"\x03\x00\x02\x00" or magic == b"\x06\x00\x02\x00"
 
-        # Read two integers, ptr_meta, obj_count (8 bytes)
         ptr_meta, obj_count, = struct.unpack("<II", reader.read(8))
-
-        # Initialize TEXPSX_DATA dictionary
-        TEXPSX_DATA = {}
-
         printer("Num objects: {}", obj_count)
+
+        TEXPSX_DATA = {}
 
         # "Objects" are 36 bytes. Skip over them for reading textures.
         for i in range(obj_count):
@@ -175,9 +171,9 @@ def extract_textures(ui, filename, directory, file_index):
             palette_8bit.append(this_pal)
 
         num_actual_tex = struct.unpack("<I", reader.read(4))[0]
-        printer("Num actual textures: {}", num_actual_tex)
-        # Set the number of textures for this file
         ui.fileTable.setItem(file_index, 1, QTableWidgetItem(str(num_actual_tex)))
+        printer("Num actual textures: {}", num_actual_tex)
+
         printer("I am at: {}", hex(reader.tell()))
 
         for i in range(num_actual_tex):
@@ -185,6 +181,7 @@ def extract_textures(ui, filename, directory, file_index):
             reader.read(4)
 
         printer("I am at: {}", hex(reader.tell()))
+
         TEXPSX_DATA["texinfo"] = []
         for i in range(num_actual_tex):
             tex_unk1 = struct.unpack("<I", reader.read(4))[0]
@@ -248,6 +245,10 @@ def extract_textures(ui, filename, directory, file_index):
                         write_to_png(ui, filename, tex_hash, tex_width, tex_height, pixels)
                         textures_written += 1
                         break
+            elif tex_palsize == 65536:
+                extract_texture(ui, reader, filename, i, reader.tell() - 20)
+                textures_written += 1
+                printer("{}: Finished reading texture. I am at: {}", tex_index, hex(reader.tell()))
         if num_actual_tex > 0:
             ui.fileTable.setItem(file_index, 2, QTableWidgetItem(str(textures_written)))
             if num_actual_tex == textures_written:

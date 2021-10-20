@@ -9,7 +9,7 @@ from main_window_ui import Ui_MainWindow
 from helpers import Printer
 
 printer = Printer()
-printer.on = False
+printer.on = True
 print_traceback = False
 
 
@@ -68,6 +68,7 @@ class Window(QMainWindow, Ui_MainWindow):
                 if not io_thps_scene_algo.extract_textures(self, filename, self.current_dir, index):
                     printer("{} not supported by io_thps_scene. Trying psx_extract.", filename)
                     extract_psx_algo.extract_textures(self, filename, self.current_dir, index)
+                printer("Finished extracting textures from {}", filename)
             except Exception as e:
                 printer("An error ocurred while trying to extract form {}. The error was: {}", filename, e)
                 if print_traceback:
