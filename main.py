@@ -65,12 +65,10 @@ class Window(QMainWindow, Ui_MainWindow):
         self.progressBar.setValue(0)
         for index, filename in enumerate(self.current_files):
             try:
-                if not io_thps_scene_algo.extract_textures(self, filename, self.current_dir, index):
-                    printer("{} not supported by io_thps_scene. Trying psx_extract.", filename)
-                    extract_psx_algo.extract_textures(self, filename, self.current_dir, index)
-                printer("Finished extracting textures from {}", filename)
+                io_thps_scene_algo.extract_textures(self, filename, self.current_dir, index)
+                printer("Finished extracting textures from {}\n", filename)
             except Exception as e:
-                printer("An error ocurred while trying to extract form {}. The error was: {}", filename, e)
+                printer("An error ocurred while trying to extract form {}. The error was: {}\n", filename, e)
                 if print_traceback:
                     traceback.print_exc()
                 self.fileTable.setItem(index, 3, QTableWidgetItem("ERROR"))
