@@ -3,14 +3,14 @@ import struct
 
 
 from PyQt5.QtWidgets import (QTableWidgetItem)
-from helpers import Printer
 from psx_pvr import PSXPVR
+from helpers import Printer, fix_and_write_to_png
 from extract_psx_algo import extract_texture
-from psx_io import write_to_png
 from math import log2
 
 printer = Printer()
-printer.on = True
+printer.on = False
+fancy_output = True
 
 
 def print_current_position(reader):
@@ -103,6 +103,31 @@ def read_8bit_palettes(reader):
     return palette_8bit
 
 
+def get_texture_info(reader, filename, num_tex):
+    pvr = PSXPVR()
+    texture_off = reader.tell()
+
+    pvr.unk = struct.unpack("<I", reader.read(4))[0]
+    pvr.pal_size = struct.unpack("<I", reader.read(4))[0]
+    pvr.hash = struct.unpack("<I", reader.read(4))[0]
+    pvr.index = struct.unpack("<I", reader.read(4))[0]
+    pvr.width = struct.unpack("<H", reader.read(2))[0]
+    pvr.height = struct.unpack("<H", reader.read(2))[0]
+
+    # 16-bit textures have additional information in their headers
+    if(pvr.pal_size == 65536):
+        pvr.palette = struct.unpack("<I", reader.read(4))[0]
+        pvr.size = struct.unpack("<I", reader.read(4))[0]
+
+    if(fancy_output):
+        dimension_string = f"{pvr.width}x{pvr.height}"
+        bit_depth_string = f"{int(log2(pvr.pal_size)): >2}-bit"
+        palette_string = f"{pvr.palette:#0{3}x}" if pvr.pal_size == 65536 else "N/A"
+        print(f"| {num_tex: >7} | {dimension_string: >10} | {bit_depth_string: >9} | {palette_string: >7} | {texture_off:#0{8}x} |")
+
+    return pvr
+
+
 def get_padding_amount(pvr, pad_width):
     if pvr.height % 2 != 0:
         return 2 if pad_width % 4 != 0 else 0
@@ -149,6 +174,18 @@ def extract_8bit_texture(reader, pvr, palette_8bit):
     return pixels
 
 
+def update_file_status(ui, file_index, num_actual_tex, textures_written):
+    if num_actual_tex > 0:
+        ui.fileTable.setItem(file_index, 2, QTableWidgetItem(str(textures_written)))
+        if num_actual_tex == textures_written:
+            ui.fileTable.setItem(file_index, 3, QTableWidgetItem("OK"))
+        else:
+            ui.fileTable.setItem(file_index, 3, QTableWidgetItem("ERROR"))
+            return False
+    else:
+        ui.fileTable.setItem(file_index, 3, QTableWidgetItem("SKIPPED"))
+
+
 def extract_textures(ui, filename, directory, file_index):
     tex_names = []
     tex_hashes = {}
@@ -183,48 +220,29 @@ def extract_textures(ui, filename, directory, file_index):
 
         print_current_position(reader)
 
+        if(num_actual_tex > 0 and fancy_output):
+            print(f"Extracting {num_actual_tex} textures from {filename}...")
+            print(f"| Texture | Dimensions | Bit-depth | Palette | Offset   |")
+
         for i in range(num_actual_tex):
-            pvr = PSXPVR()
-            texture_off = reader.tell()
-
-            pvr.unk = struct.unpack("<I", reader.read(4))[0]
-            pvr.pal_size = struct.unpack("<I", reader.read(4))[0]
-            pvr.hash = struct.unpack("<I", reader.read(4))[0]
-            pvr.index = struct.unpack("<I", reader.read(4))[0]
-            pvr.width = struct.unpack("<H", reader.read(2))[0]
-            pvr.height = struct.unpack("<H", reader.read(2))[0]
-
-            # 16-bit textures have additional information in their headers
-            if(pvr.pal_size == 65536):
-                pvr.palette = struct.unpack("<I", reader.read(4))[0]
-                pvr.size = struct.unpack("<I", reader.read(4))[0]
-                printer("{} texture {} ({}x{}, 16-bit, palette {}): {}", filename, i + 1, pvr.width, pvr.height, hex(pvr.palette), hex(texture_off))
-            else:
-                printer("{} texture {} ({}x{}, {}-bit): {}", filename, i + 1, pvr.width, pvr.height, log2(pvr.pal_size), hex(texture_off))
-
+            pvr = get_texture_info(reader, filename, i + 1)
             tex_hashes[i] = tex_names[i]  # tex_hash
 
             # Now read the raw texture data
             pixels = []
 
+            # Temporary - I plan to make the output a PNG regardless of bit-depth
             if pvr.pal_size != 65536:
                 if pvr.pal_size == 16:
                     pixels = extract_4bit_texture(reader, pvr, palette_4bit)
                 elif pvr.pal_size == 256:
                     pixels = extract_8bit_texture(reader, pvr, palette_8bit)
                 printer("{}: Finished reading texture. I am at: {}", pvr.index, hex(reader.tell()))
-                write_to_png(ui, filename, pvr.hash, pvr.width, pvr.height, pixels)
+                fix_and_write_to_png(ui, filename, pvr.hash, pvr.width, pvr.height, pixels)
                 textures_written += 1
             else:
-                extract_texture(ui, reader, filename, i, pvr)
+                extract_texture(ui, reader, filename, pvr)
                 textures_written += 1
                 printer("{}: Finished reading texture. I am at: {}", pvr.index, hex(reader.tell()))
-        if num_actual_tex > 0:
-            ui.fileTable.setItem(file_index, 2, QTableWidgetItem(str(textures_written)))
-            if num_actual_tex == textures_written:
-                ui.fileTable.setItem(file_index, 3, QTableWidgetItem("OK"))
-            else:
-                ui.fileTable.setItem(file_index, 3, QTableWidgetItem("ERROR"))
-                return False
-        else:
-            ui.fileTable.setItem(file_index, 3, QTableWidgetItem("SKIPPED"))
+
+    update_file_status(ui, file_index, num_actual_tex, textures_written)
