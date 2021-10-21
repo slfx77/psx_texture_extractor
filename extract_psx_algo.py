@@ -11,8 +11,9 @@ from rawtex_algo import do_convert
 
 PAD_HEX = 8
 printer = Printer()
-printer.on = False
-print_traceback = False
+printer.on = True
+print_traceback = True
+SUPPORTED_PALETTES = [0x100, 0x300, 0x400, 0x900, 0xd00]
 
 
 class Mem:
@@ -159,16 +160,7 @@ def decompress_texture(reader, pvr):
         return decompress_scrambled(reader, pvr, cur_texture)
 
 
-def extract_texture(ui, reader, filename, tex_num, offset=0):
-
-    if(offset == 0):
-        texture_off = struct.unpack("<I", reader.read(4))[0]
-
-        # save current offset
-        current_off = reader.tell()
-    else:
-        texture_off = offset
-
+def get_texture_info(reader, texture_off):
     pvr = PSXPVR()
     reader.seek(texture_off, SEEK_SET)
 
@@ -178,23 +170,33 @@ def extract_texture(ui, reader, filename, tex_num, offset=0):
     pvr.height = struct.unpack("<H", reader.read(2))[0]
     pvr.palette = struct.unpack("<I", reader.read(4))[0]
     pvr.size = struct.unpack("<I", reader.read(4))[0]
+    return pvr
+
+
+def extract_texture(ui, reader, filename, tex_num, pvr=None):
+    if(pvr is None):
+        texture_off = struct.unpack("<I", reader.read(4))[0]
+
+        # save current offset
+        current_off = reader.tell()
+        pvr = get_texture_info(reader, texture_off)
+    else:
+        texture_off = reader.tell()
 
     printer("{} texture {} ({}x{}, palette {}): {}", filename, tex_num + 1, pvr.width, pvr.height, hex(pvr.palette), hex(texture_off))
 
-    supported_palettes = [0x100, 0x300, 0x400, 0x900, 0xd00]
-
     # skip unsupported textures
-    if (pvr.palette & 0xFF00) not in supported_palettes:
+    if (pvr.palette & 0xFF00) not in SUPPORTED_PALETTES:
         printer("Not implemented yet: {}.", format(hex(pvr.palette)))
         return False
 
     decompressed = decompress_texture(reader, pvr)
     export_to_file(ui, filename, decompressed, pvr, texture_off)
 
-    if(offset == 0):
+    if(pvr is None):
         reader.seek(current_off, SEEK_SET)
     else:
-        reader.seek(texture_off + pvr.size + 28, SEEK_SET)
+        reader.seek(texture_off + pvr.size, SEEK_SET)
 
     return True
 
@@ -260,4 +262,3 @@ def extract_textures(ui, filename, directory, file_index):
                 ui.fileTable.setItem(file_index, 3, QTableWidgetItem("ERROR"))
         else:
             ui.fileTable.setItem(file_index, 3, QTableWidgetItem("SKIPPED"))
-        input.close()
