@@ -110,7 +110,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "PSX Texture Extractor v0.6"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "PSX Texture Extractor v0.7"))
         self.inputLabel.setText(_translate("MainWindow", "Input Directory"))
         self.inputBrowse.setText(_translate("MainWindow", "Browse..."))
         self.outputLabel.setText(_translate("MainWindow", "Output Directory"))
