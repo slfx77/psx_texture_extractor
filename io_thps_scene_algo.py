@@ -222,7 +222,7 @@ def extract_textures(ui, filename, directory, file_index):
 
         if(num_actual_tex > 0 and fancy_output):
             print(f"Extracting {num_actual_tex} textures from {filename}...")
-            print(f"| Texture | Dimensions | Bit-depth | Palette | Offset   |")
+            print(f"| Texture | Dimensions | Bit-depth | Palette |  Offset  |")
 
         for i in range(num_actual_tex):
             pvr = get_texture_info(reader, filename, i + 1)
