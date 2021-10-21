@@ -80,7 +80,8 @@ def decompress_morton(reader, pvr):
     for i in range(pvr.width * pvr.height):
         next_index = morton(i, pvr.width, pvr.height)
         channel = struct.unpack("<H", reader.read(2))[0]
-        destination_index = int(next_index / 2)
+
+        destination_index = int(next_index)
         texture_buffer[destination_index] = channel
 
     return texture_buffer
@@ -141,7 +142,12 @@ def export_to_file(ui, filename, decompressed, pvr, texture_off):
     filename_without_extension = "".join(filename.split(".")[0:-1])
 
     file_address = int(texture_off + 0x1C)
-    out_filename = f"{filename_without_extension}_{file_address:#0{PAD_HEX}x}{ui.files_extracted}.bmp"
+
+    # Mark rotated textures with an R
+    if((pvr.palette & 0xFF00) in [0x100, 0xd00]):
+        out_filename = f"{filename_without_extension}_{file_address:#0{PAD_HEX}x}_r.bmp"
+    else:
+        out_filename = f"{filename_without_extension}_{file_address:#0{PAD_HEX}x}.bmp"
 
     if ui.create_sub_dirs:
         output_dir = os.path.join(ui.output_dir, filename_without_extension)
