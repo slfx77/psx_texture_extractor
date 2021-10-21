@@ -71,7 +71,7 @@ def fix_and_write_to_png(ui, filename, tex_hash, tex_width, tex_height, pixels):
     else:
         output_dir = ui.output_dir
 
-    output_path = os.path.join(output_dir, f"{filename_without_extension}_{tex_hash:#0{8}x}{ui.files_extracted}.png")
+    output_path = os.path.join(output_dir, f"{filename_without_extension}_{tex_hash:#0{8}x}.png")
     converted_pixels = fix_pixel_data(tex_width, tex_height, pixels)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
