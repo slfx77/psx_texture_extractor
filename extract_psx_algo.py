@@ -42,19 +42,6 @@ def morton(t, sx, sy):
     return num7 * sx + num6
 
 
-def unscramble_morton(reader, pvr):
-    texture_buffer_size = (pvr.width * pvr.height * 2)
-    texture_buffer = [0x00] * texture_buffer_size
-
-    for i in range(pvr.width * pvr.height):
-        next_index = morton(i, pvr.width, pvr.height)
-        channel = struct.unpack("<H", reader.read(2))[0]
-        destination_index = int(next_index / 2)
-        texture_buffer[destination_index] = channel
-
-    return texture_buffer
-
-
 def get_color(reader, cur_texture, color_offset):
     palette_offset = 0
     read = Color()
@@ -82,6 +69,19 @@ def decompress_sequenced(reader, pvr):
         counter += 1
         if (counter >= goal):
             break
+
+    return texture_buffer
+
+
+def decompress_morton(reader, pvr):
+    texture_buffer_size = (pvr.width * pvr.height * 2)
+    texture_buffer = [0x00] * texture_buffer_size
+
+    for i in range(pvr.width * pvr.height):
+        next_index = morton(i, pvr.width, pvr.height)
+        channel = struct.unpack("<H", reader.read(2))[0]
+        destination_index = int(next_index / 2)
+        texture_buffer[destination_index] = channel
 
     return texture_buffer
 
@@ -130,7 +130,7 @@ def decompress_texture(reader, pvr):
         pvr.width += pvr.height
         pvr.height = pvr.width - pvr.height
         pvr.width -= pvr.height
-        return unscramble_morton(reader, pvr)
+        return decompress_morton(reader, pvr)
     # Scrambled / compressed
     else:
         return decompress_scrambled(reader, pvr, cur_texture)
