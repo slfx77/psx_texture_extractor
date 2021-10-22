@@ -116,12 +116,11 @@ def decompress_texture(reader, pvr):
     cur_texture = reader.tell()
     printer("Image data starts at: {}", hex(cur_texture))
 
-    # 2305 and 2306 are special in-sequence palettes (901, 902 in hex)
-    # (There's probably a bit that sets these, haven't looked at it)
+    # 901 and 902 are special in-sequence palettes
     if ((pvr.palette & 0xFF00) in [0x900]):
         return decompress_sequenced(reader, pvr)
     elif((pvr.palette & 0xFF00) in [0x100, 0xd00]):
-        # Texture is rotated 90 degrees - swap width and height
+        # Texture is stored rotated 90 degrees - swap width and height
         pvr.width += pvr.height
         pvr.height = pvr.width - pvr.height
         pvr.width -= pvr.height
@@ -146,7 +145,7 @@ def convert_texture_for_pypng(texture, pvr):
     return pixels
 
 
-def extract_texture(reader, pvr):
+def extract_16bit_texture(reader, pvr):
     # skip unsupported textures
     if (pvr.palette & 0xFF00) not in SUPPORTED_PALETTES:
         printer("Not implemented yet: {}.", format(hex(pvr.palette)))

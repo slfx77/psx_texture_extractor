@@ -9,7 +9,7 @@ from io_thps_scene import extract_textures
 
 printer = Printer()
 printer.on = True
-print_traceback = True
+print_traceback = False
 
 
 class Window(QMainWindow, Ui_MainWindow):

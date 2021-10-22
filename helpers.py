@@ -1,6 +1,8 @@
 import os
 import png
 
+from PIL import Image
+
 
 class Printer(object):
     def __init__(self):
@@ -63,6 +65,7 @@ def fix_pixel_data(width, height, pixels):
 
 
 def write_to_png(ui, filename, pvr, pixels):
+    postprocess = False
     final_image = pixels
     ui.files_extracted += 1
     filename_without_extension = "".join(filename.split(".")[0:-1])
@@ -77,7 +80,9 @@ def write_to_png(ui, filename, pvr, pixels):
     if(pvr.pal_size != 65536):
         final_image = fix_pixel_data(pvr.width, pvr.height, pixels)
     elif((pvr.palette & 0xFF00) in [0x100, 0xd00]):
-        output_path = output_path[0:-4] + "_r" + output_path[-4:]
+        postprocess = True
+    elif((pvr.palette & 0xFF00) == 0x400):
+        output_path = output_path[0:-4] + "_i" + output_path[-4:]  # Mark unsupported textures with _i
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
@@ -85,3 +90,9 @@ def write_to_png(ui, filename, pvr, pixels):
     writer = png.Writer(pvr.width, pvr.height, greyscale=False, alpha=True)
     writer.write(file, final_image)
     file.close()
+
+    if(postprocess):
+        texture = Image.open(output_path)
+        out = texture.rotate(270, expand=True)
+        out = out.transpose(Image.FLIP_LEFT_RIGHT)
+        out.save(output_path)

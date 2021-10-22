@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QTableWidgetItem)
 from psx_pvr import PSXPVR
 from helpers import Printer, write_to_png
 from color_helpers import ps1_to_32bpp
-from extract_psx import extract_texture
+from extract_psx import extract_16bit_texture
 from math import log2
 
 printer = Printer()
@@ -170,8 +170,8 @@ def update_file_status(ui, file_index, num_actual_tex, textures_written):
             ui.fileTable.setItem(file_index, 3, QTableWidgetItem("OK"))
         else:
             ui.fileTable.setItem(file_index, 3, QTableWidgetItem("ERROR"))
-            return False
     else:
+        ui.fileTable.setItem(file_index, 2, QTableWidgetItem("0"))
         ui.fileTable.setItem(file_index, 3, QTableWidgetItem("SKIPPED"))
 
 
@@ -190,9 +190,9 @@ def extract_textures(ui, filename, directory, file_index):
         skip_model_data(reader)
         tex_names = read_texture_info(reader)
 
-        # -------------------------------------------------
-        # Direct reading from the PSX file - incomplete
-        # -------------------------------------------------
+        # ----------------------------------------------------------------------------------------------
+        # Direct reading from the PSX file - Mostly complete, 16-bit palettes 0x400 - 0x402 unsupported
+        # ----------------------------------------------------------------------------------------------
 
         palette_4bit = read_4bit_palettes(reader)
         palette_8bit = read_8bit_palettes(reader)
@@ -220,13 +220,12 @@ def extract_textures(ui, filename, directory, file_index):
             # Now read the raw texture data
             pixels = []
 
-            # Temporary - I plan to make the output a PNG regardless of bit-depth
             if pvr.pal_size == 16:
                 pixels = extract_4bit_texture(reader, pvr, palette_4bit)
             elif pvr.pal_size == 256:
                 pixels = extract_8bit_texture(reader, pvr, palette_8bit)
             elif pvr.pal_size == 65536:
-                pixels = extract_texture(reader, pvr)
+                pixels = extract_16bit_texture(reader, pvr)
             printer("{}: Finished reading texture. I am at: {}", pvr.index, hex(reader.tell()))
             write_to_png(ui, filename, pvr, pixels)
             textures_written += 1
