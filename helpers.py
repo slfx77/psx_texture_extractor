@@ -33,14 +33,14 @@ def shift_rows_down(image, amount):
     return new_image
 
 
-def shift_col_down(image, col, amount, tex_height):
+def shift_col_down(image, col, amount, height):
     col_to_shift = []
     col_start = col * 4
-    for i in range(0, tex_height):
+    for i in range(0, height):
         col_to_shift.extend(image[i][col_start:col_start+4])
     col_shifted_up = shift_row_right(col_to_shift, amount)
     new_image = []
-    for i in range(0, tex_height):
+    for i in range(0, height):
         if col != 0:
             new_image.append(image[i][0:col_start])
         else:
@@ -50,19 +50,20 @@ def shift_col_down(image, col, amount, tex_height):
     return new_image
 
 
-def fix_pixel_data(tex_width, tex_height, pixels):
+def fix_pixel_data(width, height, pixels):
     initial_image = []
-    for i in range(0, tex_height):
+    for i in range(0, height):
         cur_row = []
-        for i in reversed(range(i * tex_width, (i + 1) * tex_width)):
+        for i in reversed(range(i * width, (i + 1) * width)):
             cur_row.extend(pixels[i])
         shifted_right = shift_row_right(cur_row, 1)
         initial_image.append(shifted_right)
     shifted_down = shift_rows_down(initial_image, 1)
-    return shift_col_down(shifted_down, 0, -1, tex_height)
+    return shift_col_down(shifted_down, 0, -1, height)
 
 
-def fix_and_write_to_png(ui, filename, tex_hash, tex_width, tex_height, pixels):
+def write_to_png(ui, filename, pvr, pixels):
+    final_image = pixels
     ui.files_extracted += 1
     filename_without_extension = "".join(filename.split(".")[0:-1])
 
@@ -71,11 +72,16 @@ def fix_and_write_to_png(ui, filename, tex_hash, tex_width, tex_height, pixels):
     else:
         output_dir = ui.output_dir
 
-    output_path = os.path.join(output_dir, f"{filename_without_extension}_{tex_hash:#0{8}x}.png")
-    converted_pixels = fix_pixel_data(tex_width, tex_height, pixels)
+    output_path = os.path.join(output_dir, f"{filename_without_extension}_{pvr.header_offset:#0{8}x}.png")
+
+    if(pvr.pal_size != 65536):
+        final_image = fix_pixel_data(pvr.width, pvr.height, pixels)
+    elif((pvr.palette & 0xFF00) in [0x100, 0xd00]):
+        output_path = output_path[0:-4] + "_r" + output_path[-4:]
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     file = open(output_path, 'wb')
-    writer = png.Writer(tex_width, tex_height, greyscale=False, alpha=True)
-    writer.write(file, converted_pixels)
+    writer = png.Writer(pvr.width, pvr.height, greyscale=False, alpha=True)
+    writer.write(file, final_image)
     file.close()
