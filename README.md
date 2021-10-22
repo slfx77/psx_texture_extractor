@@ -11,9 +11,9 @@ This program can be running `py main.py` in the directory it is extracted to. Th
 
 # Known bugs
 
-- There is no error handling at the moment for when the folder that has been selected is then deleted. The program will crash in this scenario.
-- The program is single threaded and will freeze while extraction is ongoing.
-- Some 16-bit textures are read incorrectly and will not appear correct when exported.
+- There is no error handling for IO errors. As such, these will crash the program.
+- The program is single threaded and the GUI will freeze while extraction is ongoing. Progress can be checked in the console.
+- Some 16-bit textures are read incorrectly and will not appear correct when exported. These are marked with an `_i` at the end of the filename.
 
 # Credits
 
@@ -25,4 +25,4 @@ This program contains code from the following other projects:
 
 - [Rawtex](https://zenhax.com/viewtopic.php?t=7099), a multipurpose converter for raw texture files. Used to convert 16-bit textures with palette types 0x100-0x102 and 0xd01.
 
-- [pypng](https://github.com/drj11/pypng), used to write 4-bit and 8-bit textures to PNG files.
+- [pypng](https://github.com/drj11/pypng), used to write textures to PNG files.
