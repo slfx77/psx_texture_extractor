@@ -1,16 +1,15 @@
 import traceback
 import os
 import sys
-import io_thps_scene_algo
-import extract_psx_algo
 
 from PyQt5.QtWidgets import (QTableWidgetItem, QApplication, QMainWindow, QFileDialog)
 from main_window_ui import Ui_MainWindow
 from helpers import Printer
+from io_thps_scene import extract_textures
 
 printer = Printer()
 printer.on = True
-print_traceback = False
+print_traceback = True
 
 
 class Window(QMainWindow, Ui_MainWindow):
@@ -65,7 +64,7 @@ class Window(QMainWindow, Ui_MainWindow):
         self.progressBar.setValue(0)
         for index, filename in enumerate(self.current_files):
             try:
-                io_thps_scene_algo.extract_textures(self, filename, self.current_dir, index)
+                extract_textures(self, filename, self.current_dir, index)
                 printer("Finished extracting textures from {}\n", filename)
             except Exception as e:
                 printer("An error ocurred while trying to extract form {}. The error was: {}\n", filename, e)

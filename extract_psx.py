@@ -1,10 +1,9 @@
-import os
 import struct
 import pymorton
 
 from os import SEEK_SET
-from bmp import write_bmp_file
 from helpers import Printer
+from color_helpers import get_16bpp_color_params, convert_16bpp_to_32bpp
 
 PAD_HEX = 8
 printer = Printer()
@@ -13,10 +12,7 @@ SUPPORTED_PALETTES = [0x100, 0x300, 0x400, 0x900, 0xd00]
 
 
 class Color:
-    r = 0
-    g = 0
-    b = 0
-    a = 0
+    block = [None] * 4
 
 
 # Borrowed from Rawtex
@@ -39,23 +35,23 @@ def morton(t, sx, sy):
             num3 >>= 1
             num1 *= 2
             num5 >>= 1
-    return num7 * sx + num6
+    return int(num7 * sx + num6)
 
 
 def get_color(reader, cur_texture, color_offset):
     palette_offset = 0
-    read = Color()
+    color = Color()
 
     reader.seek(((cur_texture + 0x800) + color_offset), SEEK_SET)
     palette_offset = struct.unpack("<B", reader.read(1))[0]
     reader.seek(cur_texture + 8 * palette_offset, SEEK_SET)
 
-    read.r = struct.unpack("<H", reader.read(2))[0]
-    read.g = struct.unpack("<H", reader.read(2))[0]
-    read.b = struct.unpack("<H", reader.read(2))[0]
-    read.a = struct.unpack("<H", reader.read(2))[0]
+    color.block[0] = struct.unpack("<H", reader.read(2))[0]
+    color.block[1] = struct.unpack("<H", reader.read(2))[0]
+    color.block[2] = struct.unpack("<H", reader.read(2))[0]
+    color.block[3] = struct.unpack("<H", reader.read(2))[0]
 
-    return read
+    return color
 
 
 def decompress_sequenced(reader, pvr):
@@ -74,14 +70,12 @@ def decompress_sequenced(reader, pvr):
 
 
 def decompress_morton(reader, pvr):
-    texture_buffer_size = (pvr.width * pvr.height * 2)
+    texture_buffer_size = (pvr.width * pvr.height)
     texture_buffer = [0x00] * texture_buffer_size
 
     for i in range(pvr.width * pvr.height):
-        next_index = morton(i, pvr.width, pvr.height)
+        destination_index = morton(i, pvr.width, pvr.height)
         channel = struct.unpack("<H", reader.read(2))[0]
-
-        destination_index = int(next_index)
         texture_buffer[destination_index] = channel
 
     return texture_buffer
@@ -100,10 +94,10 @@ def decompress_scrambled(reader, pvr, cur_texture):
                 color_offset = pymorton.interleave(cur_height, cur_width)
                 color = get_color(reader, cur_texture, color_offset)
 
-                texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.r
-                texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.b
-                texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.g
-                texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.a
+                texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.block[0]
+                texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.block[2]
+                texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.block[1]
+                texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.block[3]
 
                 cur_width += 1
                 if (cur_width >= (pvr.width >> 1)):
@@ -137,37 +131,28 @@ def decompress_texture(reader, pvr):
         return decompress_scrambled(reader, pvr, cur_texture)
 
 
-def export_to_file(ui, filename, decompressed, pvr, texture_off):
-    ui.files_extracted += 1
-    filename_without_extension = "".join(filename.split(".")[0:-1])
+def convert_texture_for_pypng(texture, pvr):
+    params = get_16bpp_color_params(pvr.palette)
 
-    file_address = int(texture_off + 0x1C)
+    pixels = []
+    pixel_row = []
 
-    # Mark rotated textures with an R
-    if((pvr.palette & 0xFF00) in [0x100, 0xd00]):
-        out_filename = f"{filename_without_extension}_{file_address:#0{PAD_HEX}x}_r.bmp"
-    else:
-        out_filename = f"{filename_without_extension}_{file_address:#0{PAD_HEX}x}.bmp"
+    for i in texture:
+        pixel_row += convert_16bpp_to_32bpp(params, i)
+        if(len(pixel_row) == pvr.width * 4):
+            pixels.append(pixel_row)
+            pixel_row = []
 
-    if ui.create_sub_dirs:
-        output_dir = os.path.join(ui.output_dir, filename_without_extension)
-    else:
-        output_dir = ui.output_dir
-
-    output_path = os.path.join(output_dir, out_filename)
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    write_bmp_file(decompressed, pvr.width, pvr.height, output_path, pvr.palette)
+    return pixels
 
 
-def extract_texture(ui, reader, filename, pvr):
-    texture_off = reader.tell()
-
+def extract_texture(reader, pvr):
     # skip unsupported textures
     if (pvr.palette & 0xFF00) not in SUPPORTED_PALETTES:
         printer("Not implemented yet: {}.", format(hex(pvr.palette)))
         return False
 
     decompressed = decompress_texture(reader, pvr)
-    export_to_file(ui, filename, decompressed, pvr, texture_off)
 
-    reader.seek(texture_off + pvr.size, SEEK_SET)
+    reader.seek(pvr.texture_offset + pvr.size, SEEK_SET)
+    return convert_texture_for_pypng(decompressed, pvr)

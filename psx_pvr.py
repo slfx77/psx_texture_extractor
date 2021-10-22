@@ -7,3 +7,7 @@ class PSXPVR:
     height = 0
     palette = 0
     size = 0
+
+    # Extra data that's not part of the format, but used to aid in conversion
+    header_offset = 0
+    texture_offset = 0
