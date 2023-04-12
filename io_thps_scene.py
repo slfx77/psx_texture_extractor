@@ -1,13 +1,13 @@
 import os
 import struct
+from math import log2
 
+from PyQt5.QtWidgets import QTableWidgetItem
 
-from PyQt5.QtWidgets import (QTableWidgetItem)
-from psx_pvr import PSXPVR
-from helpers import Printer, write_to_png
 from color_helpers import ps1_to_32bpp
 from extract_psx import extract_16bit_texture
-from math import log2
+from helpers import Printer, write_to_png
+from psx_pvr import PSXPVR
 
 printer = Printer()
 printer.on = False
@@ -19,7 +19,7 @@ def print_current_position(reader):
 
 
 def skip_model_data(reader):
-    ptr_meta, obj_count, = struct.unpack("<II", reader.read(8))
+    (ptr_meta, obj_count) = struct.unpack("<II", reader.read(8))
     printer("Num objects: {}", obj_count)
 
     # "Objects" are 36 bytes. Skip over them for reading textures.
@@ -67,28 +67,15 @@ def read_texture_info(reader):
     return tex_names
 
 
-def read_4bit_palettes(reader):
-    # Read 16-color palettes
-    num_4bit = struct.unpack("<I", reader.read(4))[0]
-    printer("Num 16-color tex: {}", num_4bit)
-    palette_4bit = []
-    for _ in range(num_4bit):
+def read_palettes(reader, num_colors):
+    num_textures = struct.unpack("<I", reader.read(4))[0]
+    printer(f"Num {num_colors}-color tex: {{}}", num_textures)
+    palettes = []
+    for _ in range(num_textures):
         this_pal = {"tex_id": struct.unpack("<I", reader.read(4))[0]}
-        this_pal["color_data"] = struct.unpack("16H", reader.read(16*2))
-        palette_4bit.append(this_pal)
-    return palette_4bit
-
-
-def read_8bit_palettes(reader):
-    # Read 256-color palettes
-    num_8bit = struct.unpack("<I", reader.read(4))[0]
-    printer("Num 256-color tex: {}", num_8bit)
-    palette_8bit = []
-    for _ in range(num_8bit):
-        this_pal = {"tex_id": struct.unpack("<I", reader.read(4))[0]}
-        this_pal["color_data"] = struct.unpack("256H", reader.read(256*2))
-        palette_8bit.append(this_pal)
-    return palette_8bit
+        this_pal["color_data"] = struct.unpack(f"{num_colors}H", reader.read(num_colors * 2))
+        palettes.append(this_pal)
+    return palettes
 
 
 def get_texture_info(reader, num_tex):
@@ -103,13 +90,13 @@ def get_texture_info(reader, num_tex):
     pvr.height = struct.unpack("<H", reader.read(2))[0]
 
     # 16-bit textures have additional information in their headers
-    if(pvr.pal_size == 65536):
+    if pvr.pal_size == 65536:
         pvr.palette = struct.unpack("<I", reader.read(4))[0]
         pvr.size = struct.unpack("<I", reader.read(4))[0]
 
     pvr.texture_offset = reader.tell()
 
-    if(fancy_output):
+    if fancy_output:
         bit_depth_string = f"{int(log2(pvr.pal_size)): >2}-bit"
         palette_string = f"{pvr.palette:#0{3}x}" if pvr.pal_size == 65536 else "N/A"
         print(f"| {num_tex: >7} | {pvr.width: >5} | {pvr.height: >6} | {bit_depth_string: >9} | {palette_string: >7} | {pvr.header_offset:#0{8}x} |")
@@ -163,24 +150,26 @@ def extract_8bit_texture(reader, pvr, palette_8bit):
     return pixels
 
 
-def update_file_status(ui, file_index, num_actual_tex, textures_written):
+def update_file_status(worker, file_index, num_actual_tex, textures_written):
     if num_actual_tex > 0:
-        ui.fileTable.setItem(file_index, 2, QTableWidgetItem(str(textures_written)))
-        if num_actual_tex == textures_written:
-            ui.fileTable.setItem(file_index, 3, QTableWidgetItem("OK"))
-        else:
-            ui.fileTable.setItem(file_index, 3, QTableWidgetItem("ERROR"))
+        worker.update_file_table_signal.emit(file_index, 2, str(textures_written))
+        worker.update_file_table_signal.emit(file_index, 3, "OK" if num_actual_tex == textures_written else "ERROR")
     else:
-        ui.fileTable.setItem(file_index, 2, QTableWidgetItem("0"))
-        ui.fileTable.setItem(file_index, 3, QTableWidgetItem("SKIPPED"))
+        worker.update_file_table_signal.emit(file_index, 2, "0")
+        worker.update_file_table_signal.emit(file_index, 3, "SKIPPED")
 
 
-def extract_textures(ui, filename, directory, file_index):
+def extract_textures(worker, filename, input_dir, output_dir, index, create_sub_dirs):
     tex_names = []
     tex_hashes = {}
     textures_written = 0
+    extraction_functions = {
+        16: lambda reader, pvr: extract_4bit_texture(reader, pvr, palette_4bit),
+        256: lambda reader, pvr: extract_8bit_texture(reader, pvr, palette_8bit),
+        65536: extract_16bit_texture,
+    }
 
-    input_file = os.path.join(directory, filename)
+    input_file = os.path.join(input_dir, filename)
 
     with open(input_file, "rb") as reader:
         # Read the file header and determine the number of objects, pointer to tagged chunks
@@ -194,11 +183,11 @@ def extract_textures(ui, filename, directory, file_index):
         # Direct reading from the PSX file - Mostly complete, 16-bit palettes 0x400 - 0x402 unsupported
         # ----------------------------------------------------------------------------------------------
 
-        palette_4bit = read_4bit_palettes(reader)
-        palette_8bit = read_8bit_palettes(reader)
+        palette_4bit = read_palettes(reader, 16)
+        palette_8bit = read_palettes(reader, 256)
 
         num_actual_tex = struct.unpack("<I", reader.read(4))[0]
-        ui.fileTable.setItem(file_index, 1, QTableWidgetItem(str(num_actual_tex)))
+        worker.update_file_table_signal.emit(index, 1, str(num_actual_tex))
         printer("Num actual textures: {}", num_actual_tex)
 
         print_current_position(reader)
@@ -209,7 +198,7 @@ def extract_textures(ui, filename, directory, file_index):
 
         print_current_position(reader)
 
-        if(num_actual_tex > 0 and fancy_output):
+        if num_actual_tex > 0 and fancy_output:
             print(f"Extracting {num_actual_tex} textures from {filename}...")
             print(f"| Texture | Width | Height | Bit-depth | Palette |  Offset  |")
 
@@ -220,14 +209,14 @@ def extract_textures(ui, filename, directory, file_index):
             # Now read the raw texture data
             pixels = []
 
-            if pvr.pal_size == 16:
-                pixels = extract_4bit_texture(reader, pvr, palette_4bit)
-            elif pvr.pal_size == 256:
-                pixels = extract_8bit_texture(reader, pvr, palette_8bit)
-            elif pvr.pal_size == 65536:
-                pixels = extract_16bit_texture(reader, pvr)
+            extraction_function = extraction_functions.get(pvr.pal_size)
+            if extraction_function:
+                pixels = extraction_function(reader, pvr)
+            else:
+                printer(f"Unsupported palette size ({pvr.pal_size}) for texture {i + 1}")
+
             printer("{}: Finished reading texture. I am at: {}", pvr.index, hex(reader.tell()))
-            write_to_png(ui, filename, pvr, pixels)
+            write_to_png(worker, filename, output_dir, create_sub_dirs, pvr, pixels)
             textures_written += 1
 
-    update_file_status(ui, file_index, num_actual_tex, textures_written)
+    update_file_status(worker, index, num_actual_tex, textures_written)

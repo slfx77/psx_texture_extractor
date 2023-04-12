@@ -11,8 +11,7 @@ This program can be running `py main.py` in the directory it is extracted to. Th
 
 # Known bugs
 
-- There is handling for IO errors within the UI part of the code. As such, these will crash the program.
-- The program is single threaded and the GUI will freeze while extraction is ongoing. Progress can be checked in the console.
+- There is no handling for IO errors within the UI part of the code. As such, these will crash the program.
 - Some 16-bit textures are read incorrectly and will not appear correct when exported. These are marked with an `_i` at the end of the filename.
 
 # Credits

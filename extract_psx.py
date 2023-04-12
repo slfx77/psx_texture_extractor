@@ -70,44 +70,35 @@ def decompress_sequenced(reader, pvr):
 
 
 def decompress_morton(reader, pvr):
-    texture_buffer_size = (pvr.width * pvr.height)
-    texture_buffer = [0x00] * texture_buffer_size
+    texture_buffer_size = pvr.width * pvr.height
+    # Read texture data and store it in a list called texture_buffer
+    texture_buffer = [struct.unpack("<H", reader.read(2))[0] for _ in range(texture_buffer_size)]
 
-    for i in range(pvr.width * pvr.height):
-        destination_index = morton(i, pvr.width, pvr.height)
-        channel = struct.unpack("<H", reader.read(2))[0]
-        texture_buffer[destination_index] = channel
-
-    return texture_buffer
-
+    # Rearrange the texture data based on the Morton order
+    # by creating a new list where each element is taken from the original texture_buffer list
+    # using the calculated destination_index (Morton order)
+    return [texture_buffer[morton(i, pvr.width, pvr.height)] for i in range(texture_buffer_size)]
 
 def decompress_scrambled(reader, pvr, cur_texture):
-    cur_height = 0
-    cur_width = 0
-    color_offset = 0
+    # Initialize the texture_buffer with the size of the final texture
     texture_buffer = [0xFF] * (pvr.width * pvr.height)
 
-    while True:
-        cur_width = 0
-        if (pvr.width >> 1):
-            while True:
-                color_offset = pymorton.interleave(cur_height, cur_width)
-                color = get_color(reader, cur_texture, color_offset)
+    # Loop through each block of 2x2 pixels in the texture (width and height are divided by 2)
+    for cur_height in range(pvr.height >> 1):
+        for cur_width in range(pvr.width >> 1):
+            # Calculate the color_offset using Morton order encoding
+            color_offset = pymorton.interleave(cur_height, cur_width)
+            # Get the color data for the current block
+            color = get_color(reader, cur_texture, color_offset)
 
-                texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.block[0]
-                texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.block[2]
-                texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.block[1]
-                texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.block[3]
+            # Fill the texture_buffer with the color data
+            texture_buffer[cur_height * pvr.width * 2 + cur_width * 2] = color.block[0]
+            texture_buffer[cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.block[2]
+            texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2] = color.block[1]
+            texture_buffer[pvr.width + cur_height * pvr.width * 2 + cur_width * 2 + 1] = color.block[3]
 
-                cur_width += 1
-                if (cur_width >= (pvr.width >> 1)):
-                    break
-            cur_height += 1
-            if (cur_height >= (pvr.height >> 1)):
-                break
-
+    # Return the texture_buffer with the decompressed texture data
     return texture_buffer
-
 
 def decompress_texture(reader, pvr):
     if (pvr.height >> 1 == 0):

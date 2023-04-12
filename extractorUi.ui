@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <class>main_window</class>
+ <widget class="QMainWindow" name="main_window">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -11,16 +11,16 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>PSX Texture Extractor v0.8</string>
+   <string>PSX Texture Extractor v0.9</string>
   </property>
-  <widget class="QWidget" name="centralwidget">
+  <widget class="QWidget" name="main_layout">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <layout class="QVBoxLayout" name="verticalLayout">
+     <layout class="QVBoxLayout" name="vertical_layout">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout">
+       <layout class="QHBoxLayout" name="input_row">
         <item>
-         <widget class="QLabel" name="inputLabel">
+         <widget class="QLabel" name="input_label">
           <property name="minimumSize">
            <size>
             <width>81</width>
@@ -31,12 +31,12 @@
            <string>Input Directory</string>
           </property>
           <property name="buddy">
-           <cstring>inputPath</cstring>
+           <cstring>input_path</cstring>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="inputPath">
+         <widget class="QLineEdit" name="input_path">
           <property name="enabled">
            <bool>true</bool>
           </property>
@@ -46,7 +46,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="inputBrowse">
+         <widget class="QPushButton" name="input_browse">
           <property name="text">
            <string>Browse...</string>
           </property>
@@ -55,9 +55,9 @@
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <layout class="QHBoxLayout" name="output_row">
         <item>
-         <widget class="QLabel" name="outputLabel">
+         <widget class="QLabel" name="output_label">
           <property name="minimumSize">
            <size>
             <width>81</width>
@@ -68,19 +68,19 @@
            <string>Output Directory</string>
           </property>
           <property name="buddy">
-           <cstring>outputPath</cstring>
+           <cstring>output_path</cstring>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="outputPath">
+         <widget class="QLineEdit" name="output_path">
           <property name="readOnly">
            <bool>true</bool>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="outputBrowse">
+         <widget class="QPushButton" name="output_browse">
           <property name="text">
            <string>Browse...</string>
           </property>
@@ -89,9 +89,9 @@
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <layout class="QHBoxLayout" name="extract_row">
         <item>
-         <widget class="QPushButton" name="extractButton">
+         <widget class="QPushButton" name="extract_button">
           <property name="enabled">
            <bool>false</bool>
           </property>
@@ -104,7 +104,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QCheckBox" name="toggleSubDirs">
+         <widget class="QCheckBox" name="toggle_sub_dirs">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -125,7 +125,7 @@
        </layout>
       </item>
       <item>
-       <widget class="QTableWidget" name="fileTable">
+       <widget class="QTableWidget" name="file_table">
         <property name="alternatingRowColors">
          <bool>true</bool>
         </property>
@@ -167,7 +167,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QProgressBar" name="progressBar">
+       <widget class="QProgressBar" name="progress_bar">
         <property name="value">
          <number>0</number>
         </property>
@@ -180,26 +180,26 @@
     </item>
    </layout>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="status_bar"/>
  </widget>
  <tabstops>
-  <tabstop>inputPath</tabstop>
-  <tabstop>inputBrowse</tabstop>
-  <tabstop>outputPath</tabstop>
-  <tabstop>outputBrowse</tabstop>
-  <tabstop>fileTable</tabstop>
+  <tabstop>input_path</tabstop>
+  <tabstop>input_browse</tabstop>
+  <tabstop>output_path</tabstop>
+  <tabstop>output_browse</tabstop>
+  <tabstop>file_table</tabstop>
  </tabstops>
  <resources/>
  <connections>
   <connection>
-   <sender>outputBrowse</sender>
+   <sender>output_browse</sender>
    <signal>clicked()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>outputBrowseClicked()</slot>
+   <receiver>main_window</receiver>
+   <slot>output_browse_clicked()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>532</x>
-     <y>54</y>
+     <x>563</x>
+     <y>64</y>
     </hint>
     <hint type="destinationlabel">
      <x>288</x>
@@ -208,14 +208,14 @@
    </hints>
   </connection>
   <connection>
-   <sender>extractButton</sender>
+   <sender>extract_button</sender>
    <signal>clicked()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>extractClicked()</slot>
+   <receiver>main_window</receiver>
+   <slot>extract_clicked()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>491</x>
-     <y>22</y>
+     <x>178</x>
+     <y>95</y>
     </hint>
     <hint type="destinationlabel">
      <x>269</x>
@@ -224,14 +224,14 @@
    </hints>
   </connection>
   <connection>
-   <sender>inputBrowse</sender>
+   <sender>input_browse</sender>
    <signal>clicked()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>inputBrowseClicked()</slot>
+   <receiver>main_window</receiver>
+   <slot>input_browse_clicked()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>410</x>
-     <y>22</y>
+     <x>563</x>
+     <y>33</y>
     </hint>
     <hint type="destinationlabel">
      <x>269</x>
@@ -240,13 +240,13 @@
    </hints>
   </connection>
   <connection>
-   <sender>toggleSubDirs</sender>
+   <sender>toggle_sub_dirs</sender>
    <signal>stateChanged(int)</signal>
-   <receiver>MainWindow</receiver>
-   <slot>createSubDirsClicked()</slot>
+   <receiver>main_window</receiver>
+   <slot>create_sub_dirs_clicked()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>567</x>
+     <x>511</x>
      <y>87</y>
     </hint>
     <hint type="destinationlabel">
@@ -257,9 +257,10 @@
   </connection>
  </connections>
  <slots>
-  <slot>inputBrowseClicked()</slot>
-  <slot>extractClicked()</slot>
-  <slot>outputBrowseClicked()</slot>
-  <slot>createSubDirsClicked()</slot>
+  <slot>input_browse_clicked()</slot>
+  <slot>extract_clicked()</slot>
+  <slot>output_browse_clicked()</slot>
+  <slot>create_sub_dirs_clicked()</slot>
+  <slot>update_file_table(int,int,QTableWidgetItem)</slot>
  </slots>
 </ui>
