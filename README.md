@@ -3,11 +3,12 @@
 - [python3](https://www.python.org/)
 - [pyqt5](https://pypi.org/project/PyQt5/) - can be installed with `pip install PyQt5`
 - [pymorton](https://github.com/trevorprater/pymorton) - can be installed with `pip install pymorton`
+- [Pillow](https://pypi.org/project/Pillow/) - can be installed with `pip install Pillow`
 - [pypng](https://github.com/drj11/pypng) - Included
 
 # Usage Instructions
 
-This program can be running `py main.py` in the directory it is extracted to. Then, simply select the folder containing the psx files you wish to extract the textures from, and the folder to output the textures to. The default behavior will dump all textures in the folder of your choice. By selecting the create subdirectories button, it will create a folder for each psx file.
+This program can be run by typing `py main.py` into a terminal in the directory it is extracted to. Then, simply select the folder containing the psx files you wish to extract the textures from, and the folder to output the textures to. The default behavior will dump all textures in the folder of your choice. By selecting the create subdirectories button, it will create a folder for each psx file.
 
 # Known bugs
 
