@@ -102,12 +102,13 @@ def decompress_scrambled(reader, pvr, cur_texture):
     return texture_buffer
 
 
-def decompress_texture(reader, pvr):
+def decompress_texture(reader, pvr, worker, output_id):
     if pvr.height >> 1 == 0:
         return None
 
     cur_texture = reader.tell()
-    printer("{}", f"Image data starts at: {hex(cur_texture)}")
+    if printer.on:
+        worker.output_strings[output_id].append(f"Image data starts at: {hex(cur_texture)}")
 
     # 901 and 902 are special in-sequence palettes
     if (pvr.palette & 0xFF00) in [0x900]:
@@ -138,13 +139,14 @@ def convert_texture_for_pypng(texture, pvr):
     return pixels
 
 
-def extract_16bit_texture(reader, pvr):
+def extract_16bit_texture(reader, pvr, worker, output_id):
     # skip unsupported textures
     if (pvr.palette & 0xFF00) not in SUPPORTED_PALETTES:
-        printer("{}", f"Not implemented yet: {hex(pvr.palette)}.")
+        if printer.on:
+            worker.output_strings[output_id].append(f"Not implemented yet: {hex(pvr.palette)}.")
         return False
 
-    decompressed = decompress_texture(reader, pvr)
+    decompressed = decompress_texture(reader, pvr, worker, output_id)
 
     reader.seek(pvr.texture_offset + pvr.size, SEEK_SET)
     return convert_texture_for_pypng(decompressed, pvr)
