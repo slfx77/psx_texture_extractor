@@ -172,7 +172,7 @@ def extract_textures(worker, filename, input_dir, output_dir, index, create_sub_
     extraction_functions = {
         16: lambda reader, pvr: extract_4bit_texture(reader, pvr, palette_4bit),
         256: lambda reader, pvr: extract_8bit_texture(reader, pvr, palette_8bit),
-        65536: lambda reader, pvr: extract_16bit_texture(reader, pvr, worker),
+        65536: lambda reader, pvr: extract_16bit_texture(reader, pvr, output_strings),
     }
 
     input_file = os.path.join(input_dir, filename)

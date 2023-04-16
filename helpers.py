@@ -1,7 +1,8 @@
 import os
-import png
 
 from PIL import Image
+
+import png
 
 
 class Printer(object):
