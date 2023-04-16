@@ -18,26 +18,28 @@ ColorBlock = namedtuple("ColorBlock", "pixels")
 
 
 # Borrowed from Rawtex
-def morton(t, sx, sy):
-    num1 = 1
-    num2 = 1
-    num3 = t
-    num4 = sx
-    num5 = sy
-    num6 = 0
-    num7 = 0
-    while num4 > 1 or num5 > 1:
-        if num4 > 1:
-            num6 += num2 * (num3 & 1)
-            num3 >>= 1
-            num2 *= 2
-            num4 >>= 1
-        if num5 > 1:
-            num7 += num1 * (num3 & 1)
-            num3 >>= 1
-            num1 *= 2
-            num5 >>= 1
-    return int(num7 * sx + num6)
+def morton(index, texture_width, texture_height):
+    x_bit_position = 1
+    y_bit_position = 1
+    bit_mask = index
+    x_dimension = texture_width
+    y_dimension = texture_height
+    interleaved_x = 0
+    interleaved_y = 0
+
+    while x_dimension > 1 or y_dimension > 1:
+        if x_dimension > 1:
+            interleaved_x += x_bit_position * (bit_mask & 1)
+            bit_mask >>= 1
+            x_bit_position *= 2
+            x_dimension >>= 1
+        if y_dimension > 1:
+            interleaved_y += y_bit_position * (bit_mask & 1)
+            bit_mask >>= 1
+            y_bit_position *= 2
+            y_dimension >>= 1
+
+    return int(interleaved_y * texture_width + interleaved_x)
 
 
 def get_color_block(reader, cur_texture, color_offset):
@@ -102,13 +104,13 @@ def decompress_scrambled(reader, pvr, cur_texture):
     return texture_buffer
 
 
-def decompress_texture(reader, pvr, worker, output_id):
+def decompress_texture(reader, pvr, output_strings):
     if pvr.height >> 1 == 0:
         return None
 
     cur_texture = reader.tell()
     if printer.on:
-        worker.output_strings[output_id].append(f"Image data starts at: {hex(cur_texture)}")
+        output_strings.append(f"Image data starts at: {hex(cur_texture)}")
 
     # 901 and 902 are special in-sequence palettes
     if (pvr.palette & 0xFF00) in [0x900]:
@@ -139,14 +141,14 @@ def convert_texture_for_pypng(texture, pvr):
     return pixels
 
 
-def extract_16bit_texture(reader, pvr, worker, output_id):
+def extract_16bit_texture(reader, pvr, output_strings):
     # skip unsupported textures
     if (pvr.palette & 0xFF00) not in SUPPORTED_PALETTES:
         if printer.on:
-            worker.output_strings[output_id].append(f"Not implemented yet: {hex(pvr.palette)}.")
+            output_strings.append(f"Not implemented yet: {hex(pvr.palette)}.")
         return False
 
-    decompressed = decompress_texture(reader, pvr, worker, output_id)
+    decompressed = decompress_texture(reader, pvr, output_strings)
 
     reader.seek(pvr.texture_offset + pvr.size, SEEK_SET)
     return convert_texture_for_pypng(decompressed, pvr)

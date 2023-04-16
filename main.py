@@ -104,21 +104,22 @@ class Window(QMainWindow, Ui_main_window):
 
 
 def process_file(worker, filename):
-    output_id = uuid.uuid4()
-    worker.output_strings[output_id] = []
+    output_strings = []
+    separator = "\n"
 
     try:
-        extract_textures(worker, filename, worker.input_dir, worker.output_dir, worker.files.index(filename), worker.create_sub_dirs, output_id)
+        extract_textures(worker, filename, worker.input_dir, worker.output_dir, worker.files.index(filename), worker.create_sub_dirs, output_strings)
         if printer.on:
-            worker.output_strings[output_id].append(f"Finished extracting textures from {filename}\n")
+            output_strings.append(f"Finished extracting textures from {filename}\n")
     except Exception as e:
         if printer.on:
-            worker.output_strings[output_id].append(f"An error ocurred while trying to extract form {filename}. The error was: {e}\n")
+            output_strings.append(f"An error ocurred while trying to extract form {filename}. The error was: {e}\n")
         if print_traceback:
             traceback.print_exc()
     finally:
         worker.progress_signal.emit()
-        return output_id
+        if len(output_strings) > 0:
+            print(separator.join(output_strings))
 
 
 class Worker(QThread):
@@ -126,8 +127,6 @@ class Worker(QThread):
     extraction_complete_signal = pyqtSignal()
     update_file_table_signal = pyqtSignal(int, int, str)
     file_extracted_signal = pyqtSignal()
-    output_strings = {}
-    separator = "\n"
 
     def __init__(self, files, input_dir, output_dir, file_table, textures_extracted, create_sub_dirs):
         super().__init__()
@@ -145,11 +144,7 @@ class Worker(QThread):
             futures = [executor.submit(process_file, self, filename) for filename in self.files]
 
             # Wait for all tasks to complete
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    print(self.separator.join(self.output_strings[future.result()]))
-                    del self.output_strings[future.result()]
+            for _ in as_completed(futures):
                 pass
 
         self.extraction_complete_signal.emit()
