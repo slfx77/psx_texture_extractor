@@ -155,16 +155,7 @@ def extract_8bit_texture(reader, pvr, palette_8bit):
     return pixels
 
 
-def update_file_status(worker, file_index, num_actual_tex, textures_written):
-    if num_actual_tex > 0:
-        worker.update_file_table_signal.emit(file_index, 2, str(textures_written))
-        worker.update_file_table_signal.emit(file_index, 3, "OK" if num_actual_tex == textures_written else "ERROR")
-    else:
-        worker.update_file_table_signal.emit(file_index, 2, "0")
-        worker.update_file_table_signal.emit(file_index, 3, "SKIPPED")
-
-
-def extract_textures(worker, filename, input_dir, output_dir, index, create_sub_dirs, output_strings):
+def extract_textures(filename, input_dir, output_dir, index, create_sub_dirs, output_strings, update_file_table, increment_textures_extracted, update_file_status):
     tex_names = []
     tex_hashes = {}
     textures_written = 0
@@ -193,7 +184,7 @@ def extract_textures(worker, filename, input_dir, output_dir, index, create_sub_
         palette_8bit = read_palettes(reader, output_strings, 256)
 
         num_actual_tex = struct.unpack("<I", reader.read(4))[0]
-        worker.update_file_table_signal.emit(index, 1, str(num_actual_tex))
+        update_file_table(index, 1, str(num_actual_tex))
         if printer.on:
             output_strings.append(f"Num actual textures: {num_actual_tex}")
 
@@ -224,7 +215,8 @@ def extract_textures(worker, filename, input_dir, output_dir, index, create_sub_
 
             if printer.on:
                 output_strings.append(f"{pvr.index}: Finished reading texture. I am at: {hex(reader.tell())}")
-            write_to_png(worker, filename, output_dir, create_sub_dirs, pvr, pixels)
-            textures_written += 1
+            # Replace the call to write_to_png with the updated version
+            write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels, increment_textures_extracted)
+            increment_textures_extracted()
 
-    update_file_status(worker, index, num_actual_tex, textures_written)
+    update_file_status(index, num_actual_tex, textures_written)

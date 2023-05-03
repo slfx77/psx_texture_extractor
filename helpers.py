@@ -66,10 +66,9 @@ def fix_pixel_data(width, height, pixels):
     return shift_col_down(shifted_down, 0, -1, height)
 
 
-def write_to_png(worker, filename, output_dir, create_sub_dirs, pvr, pixels):
+def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels, file_extracted_callback):
     postprocess = False
     final_image = pixels
-    worker.file_extracted_signal.emit()
     filename_without_extension = "".join(filename.split(".")[0:-1])
 
     if create_sub_dirs:
@@ -98,3 +97,5 @@ def write_to_png(worker, filename, output_dir, create_sub_dirs, pvr, pixels):
         out = texture.rotate(270, expand=True)
         out = out.transpose(Image.FLIP_LEFT_RIGHT)
         out.save(output_path)
+
+    file_extracted_callback()

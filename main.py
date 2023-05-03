@@ -1,9 +1,11 @@
 import os
 import sys
 import traceback
-import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
+from traceback import format_exception
+from queue import Queue
+from multiprocessing import Manager
 
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow, QTableWidgetItem
@@ -103,12 +105,22 @@ class Window(QMainWindow, Ui_main_window):
         self.create_sub_dirs = not self.create_sub_dirs
 
 
-def process_file(worker, filename):
+def process_file(queue, filename, input_dir, output_dir, file_index, create_sub_dirs):
     output_strings = []
     separator = "\n"
 
     try:
-        extract_textures(worker, filename, worker.input_dir, worker.output_dir, worker.files.index(filename), worker.create_sub_dirs, output_strings)
+        extract_textures(
+            filename,
+            input_dir,
+            output_dir,
+            file_index,
+            create_sub_dirs,
+            output_strings,
+            lambda row, col, text: queue.put(("update_file_table_signal", row, col, text)),
+            lambda: queue.put(("file_extracted_signal",)),
+            lambda file_index, num_actual_tex, textures_written: queue.put(("update_file_status", file_index, num_actual_tex, textures_written)),
+        )
         if printer.on:
             output_strings.append(f"Finished extracting textures from {filename}\n")
     except Exception as e:
@@ -117,7 +129,7 @@ def process_file(worker, filename):
         if print_traceback:
             traceback.print_exc()
     finally:
-        worker.progress_signal.emit()
+        queue.put(("progress_signal",))
         if len(output_strings) > 0:
             print(separator.join(output_strings))
 
@@ -138,16 +150,47 @@ class Worker(QThread):
         self.create_sub_dirs = create_sub_dirs
 
     def run(self):
-        max_workers = os.cpu_count()  # Adjust this to the desired number of parallel tasks
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all files to the executor for processing
-            futures = [executor.submit(process_file, self, filename) for filename in self.files]
+        max_workers = os.cpu_count()
 
-            # Wait for all tasks to complete
-            for _ in as_completed(futures):
-                pass
+        with Manager() as manager:
+            queue = manager.Queue()
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(process_file, queue, filename, self.input_dir, self.output_dir, self.files.index(filename), self.create_sub_dirs) for filename in self.files
+                ]
+
+                while True:
+                    if all(f.done() for f in futures):
+                        break
+
+                    while not queue.empty():
+                        signal_type, *args = queue.get()
+                        if signal_type == "update_file_table_signal":
+                            self.update_file_table_signal.emit(*args)
+                        elif signal_type == "file_extracted_signal":
+                            self.file_extracted_signal.emit()
+                        elif signal_type == "update_file_status":
+                            self.update_file_status(*args)
+                        elif signal_type == "progress_signal":
+                            self.progress_signal.emit()
+
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        exc_type, exc_value, exc_traceback = sys.exc_info()
+                        traceback_msg = "".join(format_exception(exc_type, exc_value, exc_traceback))
+                        print(f"An error occurred in the process: {e}\nTraceback: {traceback_msg}")
 
         self.extraction_complete_signal.emit()
+
+    def update_file_status(self, file_index, num_actual_tex, textures_written):
+        if num_actual_tex > 0:
+            self.update_file_table_signal.emit(file_index, 2, str(textures_written))
+            self.update_file_table_signal.emit(file_index, 3, "OK" if num_actual_tex == textures_written else "ERROR")
+        else:
+            self.update_file_table_signal.emit(file_index, 2, "0")
+            self.update_file_table_signal.emit(file_index, 3, "SKIPPED")
 
 
 if __name__ == "__main__":
