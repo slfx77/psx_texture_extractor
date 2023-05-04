@@ -155,7 +155,7 @@ def extract_8bit_texture(reader, pvr, palette_8bit):
     return pixels
 
 
-def extract_textures(filename, input_dir, output_dir, index, create_sub_dirs, output_strings, update_file_table, increment_textures_extracted, update_file_status):
+def extract_textures(filename, input_dir, output_dir, index, create_sub_dirs, output_strings, update_file_table, update_file_status):
     tex_names = []
     tex_hashes = {}
     textures_written = 0
@@ -216,7 +216,7 @@ def extract_textures(filename, input_dir, output_dir, index, create_sub_dirs, ou
             if printer.on:
                 output_strings.append(f"{pvr.index}: Finished reading texture. I am at: {hex(reader.tell())}")
             # Replace the call to write_to_png with the updated version
-            write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels, increment_textures_extracted)
-            increment_textures_extracted()
+            write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels)
+            textures_written += 1
 
     update_file_status(index, num_actual_tex, textures_written)

@@ -19,11 +19,11 @@ printer.on = True
 print_traceback = True
 
 
+# Define main window class, inherits QMainWindow and Ui_main_window
 class Window(QMainWindow, Ui_main_window):
     current_dir = ""
     output_dir = ""
     current_files = []
-    textures_extracted = 0
     files_processed = 0
     start_time = 0
     create_sub_dirs = False
@@ -32,6 +32,7 @@ class Window(QMainWindow, Ui_main_window):
         super().__init__(parent)
         self.setupUi(self)
 
+    # Open a directory picker and set the input directory path
     def input_browse_clicked(self):
         options = QFileDialog.Options()
         dir_name = QFileDialog.getExistingDirectory(self, "Choose Directory", "", options=options)
@@ -41,9 +42,11 @@ class Window(QMainWindow, Ui_main_window):
             self.file_table.setRowCount(0)
             self.get_psx_files(dir_name)
 
+    # Filter files with .psx or .PSX extensions
     def filter_psx_files(self, file_list):
         return filter(lambda file: file.split(".")[-1] == "psx" or file.split(".")[-1] == "PSX", file_list)
 
+    # Get .psx files from the chosen directory and update the GUI
     def get_psx_files(self, dir_name):
         self.input_path.setText(dir_name)
         dir_files = [f for f in os.listdir(dir_name) if os.path.isfile(os.path.join(dir_name, f))]
@@ -58,6 +61,7 @@ class Window(QMainWindow, Ui_main_window):
         else:
             self.extract_button.setEnabled(False)
 
+    # Open a directory picker and set the output directory path
     def output_browse_clicked(self):
         options = QFileDialog.Options()
         dir_name = QFileDialog.getExistingDirectory(self, "Choose Directory", "", options=options)
@@ -69,42 +73,43 @@ class Window(QMainWindow, Ui_main_window):
             else:
                 self.extract_button.setEnabled(False)
 
+    # Start the extraction process when the extract button is clicked
     def extract_clicked(self):
         self.start_time = datetime.now()
         self.progress_bar.setValue(0)
         self.extract_button.setEnabled(False)
-        self.worker = Worker(self.current_files, self.current_dir, self.output_dir, self.file_table, self.textures_extracted, self.create_sub_dirs)
-        self.worker.progress_signal.connect(self.update_progress_bar)
+        self.worker = Worker(self.current_files, self.current_dir, self.output_dir, self.file_table, self.create_sub_dirs)
+        self.worker.update_progress_bar_signal.connect(self.update_progress_bar)
         self.worker.extraction_complete_signal.connect(self.extraction_complete)
         self.worker.update_file_table_signal.connect(self.update_file_table)
-        self.worker.file_extracted_signal.connect(self.increment_textures_extracted)
         self.worker.start()
 
+    # Update the progress bar based on the number of files processed
     @pyqtSlot()
     def update_progress_bar(self):
         self.files_processed += 1
         progress = round(self.files_processed / len(self.current_files) * 100)
         self.progress_bar.setValue(progress)
 
+    # Update the file table in the GUI
     @pyqtSlot(int, int, str)
     def update_file_table(self, row, col, text):
         new_item = QTableWidgetItem(text)
         self.file_table.setItem(row, col, new_item)
 
-    @pyqtSlot()
-    def increment_textures_extracted(self):
-        self.textures_extracted += 1
-
+    # Update the UI and display the time elapsed when the extraction is complete
     @pyqtSlot()
     def extraction_complete(self):
         self.progress_bar.setValue(100)
         self.extract_button.setEnabled(True)
         self.status_bar.showMessage(f"Time elapsed: {(datetime.now() - self.start_time).total_seconds()}")
 
+    # Toggle the create_sub_dirs boolean when the Create Subdirectories checkbox is clicked
     def create_sub_dirs_clicked(self):
         self.create_sub_dirs = not self.create_sub_dirs
 
 
+# Function to process a single file
 def process_file(queue, filename, input_dir, output_dir, file_index, create_sub_dirs):
     output_strings = []
     separator = "\n"
@@ -118,8 +123,12 @@ def process_file(queue, filename, input_dir, output_dir, file_index, create_sub_
             create_sub_dirs,
             output_strings,
             lambda row, col, text: queue.put(("update_file_table_signal", row, col, text)),
-            lambda: queue.put(("file_extracted_signal",)),
-            lambda file_index, num_actual_tex, textures_written: queue.put(("update_file_status", file_index, num_actual_tex, textures_written)),
+            lambda file_index, num_actual_tex, textures_written: (
+                queue.put(("update_file_table_signal", file_index, 2, str(textures_written))),
+                queue.put(("update_file_table_signal", file_index, 3, "OK" if num_actual_tex == textures_written else "ERROR")),
+            )
+            if num_actual_tex > 0
+            else (queue.put(("update_file_table_signal", file_index, 2, "0")), queue.put(("update_file_table_signal", file_index, 3, "SKIPPED"))),
         )
         if printer.on:
             output_strings.append(f"Finished extracting textures from {filename}\n")
@@ -129,51 +138,56 @@ def process_file(queue, filename, input_dir, output_dir, file_index, create_sub_
         if print_traceback:
             traceback.print_exc()
     finally:
-        queue.put(("progress_signal",))
+        queue.put(("update_progress_bar_signal",))
         if len(output_strings) > 0:
             print(separator.join(output_strings))
 
 
+# Define the worker thread class, inherits QThread
 class Worker(QThread):
-    progress_signal = pyqtSignal()
-    extraction_complete_signal = pyqtSignal()
+    # Define custom PyQt signals for progress, completion, and updating the file table
+    update_progress_bar_signal = pyqtSignal()
     update_file_table_signal = pyqtSignal(int, int, str)
-    file_extracted_signal = pyqtSignal()
+    extraction_complete_signal = pyqtSignal()
 
-    def __init__(self, files, input_dir, output_dir, file_table, textures_extracted, create_sub_dirs):
+    def __init__(self, files, input_dir, output_dir, file_table, create_sub_dirs):
         super().__init__()
+        # Initialize instance variables
         self.files = files
         self.input_dir = input_dir
         self.output_dir = output_dir
         self.file_table = file_table
-        self.textures_extracted = textures_extracted
         self.create_sub_dirs = create_sub_dirs
 
+    # Run the worker thread
     def run(self):
+        # Get the number of available CPU cores
         max_workers = os.cpu_count()
 
+        # Use a Manager for inter-process communication
         with Manager() as manager:
-            queue = manager.Queue()
+            queue = manager.Queue()  # Create a queue for sharing data between processes
+            # Use a ProcessPoolExecutor for parallel processing
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                # Submit each file for processing and store the resulting Future objects
                 futures = [
                     executor.submit(process_file, queue, filename, self.input_dir, self.output_dir, self.files.index(filename), self.create_sub_dirs) for filename in self.files
                 ]
 
+                # Continuously check if all futures are done
                 while True:
                     if all(f.done() for f in futures):
                         break
 
+                    # Process items in the queue until it is empty
                     while not queue.empty():
                         signal_type, *args = queue.get()
                         if signal_type == "update_file_table_signal":
                             self.update_file_table_signal.emit(*args)
-                        elif signal_type == "file_extracted_signal":
-                            self.file_extracted_signal.emit()
-                        elif signal_type == "update_file_status":
-                            self.update_file_status(*args)
                         elif signal_type == "progress_signal":
                             self.progress_signal.emit()
 
+                # Iterate through the completed futures and handle any exceptions
                 for future in as_completed(futures):
                     try:
                         future.result()
@@ -182,15 +196,8 @@ class Worker(QThread):
                         traceback_msg = "".join(format_exception(exc_type, exc_value, exc_traceback))
                         print(f"An error occurred in the process: {e}\nTraceback: {traceback_msg}")
 
+        # Emit the extraction complete signal to inform the GUI that the process is done
         self.extraction_complete_signal.emit()
-
-    def update_file_status(self, file_index, num_actual_tex, textures_written):
-        if num_actual_tex > 0:
-            self.update_file_table_signal.emit(file_index, 2, str(textures_written))
-            self.update_file_table_signal.emit(file_index, 3, "OK" if num_actual_tex == textures_written else "ERROR")
-        else:
-            self.update_file_table_signal.emit(file_index, 2, "0")
-            self.update_file_table_signal.emit(file_index, 3, "SKIPPED")
 
 
 if __name__ == "__main__":
