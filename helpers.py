@@ -1,19 +1,6 @@
 import os
 
-from PIL import Image
-
 import png
-
-
-class Printer(object):
-    def __init__(self):
-        self.on = True
-
-    def __call__(self, message, *stuff):
-        if self.on:
-            print(message.format(*stuff))
-        return stuff[0]
-
 
 ##################################
 # IO THPS Scene Image Correction #
@@ -67,7 +54,6 @@ def fix_pixel_data(width, height, pixels):
 
 
 def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
-    postprocess = False
     final_image = pixels
     filename_without_extension = "".join(filename.split(".")[0:-1])
 
@@ -80,8 +66,6 @@ def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
 
     if pvr.pal_size != 65536:
         final_image = fix_pixel_data(pvr.width, pvr.height, pixels)
-    elif (pvr.palette & 0xFF00) in [0x100, 0xD00]:
-        postprocess = True
     elif (pvr.palette & 0xFF00) == 0x400:
         output_path = output_path[0:-4] + "_i" + output_path[-4:]  # Mark unsupported textures with _i
 
@@ -91,9 +75,3 @@ def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
     writer = png.Writer(pvr.width, pvr.height, greyscale=False, alpha=True)
     writer.write(file, final_image)
     file.close()
-
-    if postprocess:
-        texture = Image.open(output_path)
-        out = texture.rotate(270, expand=True)
-        out = out.transpose(Image.FLIP_LEFT_RIGHT)
-        out.save(output_path)

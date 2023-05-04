@@ -4,22 +4,21 @@ from math import log2
 
 from color_helpers import ps1_to_32bpp
 from extract_psx import extract_16bit_texture
-from helpers import Printer, write_to_png
+from helpers import write_to_png
 from psx_pvr import PSXPVR
 
-printer = Printer()
-printer.on = False
+print_output = False
 fancy_output = True
 
 
 def print_current_position(reader, output_strings):
-    if printer.on:
+    if print_output:
         output_strings.append(f"I am at: {hex(reader.tell())}")
 
 
 def skip_model_data(reader, output_strings):
     (ptr_meta, obj_count) = struct.unpack("<II", reader.read(8))
-    if printer.on:
+    if print_output:
         output_strings.append(f"Num objects: {obj_count}")
 
     # "Objects" are 36 bytes. Skip over them for reading textures.
@@ -29,7 +28,7 @@ def skip_model_data(reader, output_strings):
 
     # Determine number of meshes (we need to skip over the mesh name list before texture info)
     mesh_count = struct.unpack("<I", reader.read(4))[0]
-    if printer.on:
+    if print_output:
         output_strings.append(f"Num meshes: {mesh_count}")
 
     # Skip to the tagged chunks, find the textures
@@ -39,7 +38,7 @@ def skip_model_data(reader, output_strings):
         magic = reader.read(4)
         chunk_count += 1
         if magic != b"\xFF\xFF\xFF\xFF":
-            if printer.on:
+            if print_output:
                 output_strings.append(f"SKIPPED CHUNK: 0x{ magic.hex()}")
             unk_length = struct.unpack("<I", reader.read(4))[0]
             reader.read(unk_length)
@@ -47,7 +46,7 @@ def skip_model_data(reader, output_strings):
                 # There should not be this many tagged chunks, must be a file error
                 raise Exception("Unable to parse PSX texture library, cannot find texture data")
         else:
-            if printer.on:
+            if print_output:
                 output_strings.append(f"END OF TAGGED CHUNKS")
             break
 
@@ -62,7 +61,7 @@ def read_texture_info(reader, output_strings):
 
     # Read number of textures
     num_tex = struct.unpack("<I", reader.read(4))[0]
-    if printer.on:
+    if print_output:
         output_strings.append(f"Num textures: {num_tex}")
 
     tex_names = []
@@ -73,7 +72,7 @@ def read_texture_info(reader, output_strings):
 
 def read_palettes(reader, output_strings, num_colors):
     num_textures = struct.unpack("<I", reader.read(4))[0]
-    if printer.on:
+    if print_output:
         output_strings.append(f"Num {num_colors}-color tex: {num_textures}")
     palettes = []
     for _ in range(num_textures):
@@ -155,7 +154,7 @@ def extract_8bit_texture(reader, pvr, palette_8bit):
     return pixels
 
 
-def extract_textures(filename, input_dir, output_dir, index, create_sub_dirs, output_strings, update_file_table, update_file_status):
+def extract_textures(filename, input_dir, output_dir, file_index, create_sub_dirs, output_strings, update_file_table):
     tex_names = []
     tex_hashes = {}
     textures_written = 0
@@ -184,8 +183,8 @@ def extract_textures(filename, input_dir, output_dir, index, create_sub_dirs, ou
         palette_8bit = read_palettes(reader, output_strings, 256)
 
         num_actual_tex = struct.unpack("<I", reader.read(4))[0]
-        update_file_table(index, 1, str(num_actual_tex))
-        if printer.on:
+        update_file_table(file_index, {1: str(num_actual_tex)})
+        if print_output:
             output_strings.append(f"Num actual textures: {num_actual_tex}")
 
         print_current_position(reader, output_strings)
@@ -210,13 +209,16 @@ def extract_textures(filename, input_dir, output_dir, index, create_sub_dirs, ou
             extraction_function = extraction_functions.get(pvr.pal_size)
             if extraction_function:
                 pixels = extraction_function(reader, pvr)
-            elif printer.on:
+            elif print_output:
                 output_strings.append(f"Unsupported palette size ({pvr.pal_size}) for texture {i + 1}")
 
-            if printer.on:
+            if print_output:
                 output_strings.append(f"{pvr.index}: Finished reading texture. I am at: {hex(reader.tell())}")
             # Replace the call to write_to_png with the updated version
             write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels)
             textures_written += 1
 
-    update_file_status(index, num_actual_tex, textures_written)
+    if num_actual_tex > 0:
+        update_file_table(file_index, {2: str(textures_written), 3: "OK" if num_actual_tex == textures_written else "ERROR"})
+    else:
+        update_file_table(file_index, {2: "0", 3: "SKIPPED"})

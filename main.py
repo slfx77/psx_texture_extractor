@@ -3,19 +3,16 @@ import sys
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
-from traceback import format_exception
-from queue import Queue
 from multiprocessing import Manager
+from traceback import format_exception
 
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow, QTableWidgetItem
 
-from helpers import Printer
 from io_thps_scene import extract_textures
 from main_window_ui import Ui_main_window
 
-printer = Printer()
-printer.on = True
+print_output = True
 print_traceback = True
 
 
@@ -44,7 +41,7 @@ class Window(QMainWindow, Ui_main_window):
 
     # Filter files with .psx or .PSX extensions
     def filter_psx_files(self, file_list):
-        return filter(lambda file: file.split(".")[-1] == "psx" or file.split(".")[-1] == "PSX", file_list)
+        return [f for f in file_list if f.lower().endswith((".psx", ".PSX"))]
 
     # Get .psx files from the chosen directory and update the GUI
     def get_psx_files(self, dir_name):
@@ -56,7 +53,7 @@ class Window(QMainWindow, Ui_main_window):
             for row, file in enumerate(psx_files):
                 self.current_files.append(file)
                 self.file_table.setItem(row, 0, QTableWidgetItem(file))
-            if self.output_dir != "":
+            if self.output_dir:
                 self.extract_button.setEnabled(True)
         else:
             self.extract_button.setEnabled(False)
@@ -114,32 +111,22 @@ def process_file(queue, filename, input_dir, output_dir, file_index, create_sub_
     output_strings = []
     separator = "\n"
 
+    def update_file_table(row, cols):
+        for col, text in cols.items():
+            queue.put(("update_file_table_signal", row, col, text))
+
     try:
-        extract_textures(
-            filename,
-            input_dir,
-            output_dir,
-            file_index,
-            create_sub_dirs,
-            output_strings,
-            lambda row, col, text: queue.put(("update_file_table_signal", row, col, text)),
-            lambda file_index, num_actual_tex, textures_written: (
-                queue.put(("update_file_table_signal", file_index, 2, str(textures_written))),
-                queue.put(("update_file_table_signal", file_index, 3, "OK" if num_actual_tex == textures_written else "ERROR")),
-            )
-            if num_actual_tex > 0
-            else (queue.put(("update_file_table_signal", file_index, 2, "0")), queue.put(("update_file_table_signal", file_index, 3, "SKIPPED"))),
-        )
-        if printer.on:
+        extract_textures(filename, input_dir, output_dir, file_index, create_sub_dirs, output_strings, update_file_table)
+        if print_output:
             output_strings.append(f"Finished extracting textures from {filename}\n")
     except Exception as e:
-        if printer.on:
-            output_strings.append(f"An error ocurred while trying to extract form {filename}. The error was: {e}\n")
+        if print_output:
+            output_strings.append(f"An error occurred while trying to extract from {filename}. The error was: {e}\n")
         if print_traceback:
             traceback.print_exc()
     finally:
         queue.put(("update_progress_bar_signal",))
-        if len(output_strings) > 0:
+        if print_output and len(output_strings) > 0:
             print(separator.join(output_strings))
 
 

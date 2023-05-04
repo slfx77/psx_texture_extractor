@@ -3,7 +3,6 @@
 - [python3](https://www.python.org/)
 - [pyqt5](https://pypi.org/project/PyQt5/) - can be installed with `pip install PyQt5`
 - [pymorton](https://github.com/trevorprater/pymorton) - can be installed with `pip install pymorton`
-- [Pillow](https://pypi.org/project/Pillow/) - can be installed with `pip install Pillow`
 - [pypng](https://github.com/drj11/pypng) - Included
 
 # Usage Instructions

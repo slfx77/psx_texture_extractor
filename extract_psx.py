@@ -6,11 +6,9 @@ from os import SEEK_SET
 import pymorton
 
 from color_helpers import convert_16bpp_to_32bpp, get_16bpp_color_params
-from helpers import Printer
 
 PAD_HEX = 8
-printer = Printer()
-printer.on = False
+print_output = False
 SUPPORTED_PALETTES = [0x100, 0x300, 0x400, 0x900, 0xD00]
 
 
@@ -72,10 +70,29 @@ def decompress_morton(reader, pvr):
     texture_buffer_size = pvr.width * pvr.height
     texture_buffer = [0x00] * texture_buffer_size
 
-    for i in range(pvr.width * pvr.height):
-        destination_index = morton(i, pvr.width, pvr.height)
-        channel = struct.unpack("<H", reader.read(2))[0]
-        texture_buffer[destination_index] = channel
+    chunk_size = min(pvr.width, pvr.height)
+    chunks_wide = pvr.width // chunk_size
+    chunks_high = pvr.height // chunk_size
+
+    for chunk_y in range(chunks_high):
+        for chunk_x in range(chunks_wide):
+            for i in range(chunk_size * chunk_size):
+                destination_index = morton(i, chunk_size, chunk_size)
+                x, y = destination_index % chunk_size, destination_index // chunk_size
+
+                # Rotate 90 degrees counter-clockwise
+                new_x, new_y = chunk_size - y - 1, x
+
+                # Mirror horizontally
+                new_x = chunk_size - new_x - 1
+
+                # Offset for chunk position
+                new_x += chunk_x * chunk_size
+                new_y += chunk_y * chunk_size
+
+                updated_destination_index = new_y * pvr.width + new_x
+                channel = struct.unpack("<H", reader.read(2))[0]
+                texture_buffer[updated_destination_index] = channel
 
     return texture_buffer
 
@@ -109,17 +126,13 @@ def decompress_texture(reader, pvr, output_strings):
         return None
 
     cur_texture = reader.tell()
-    if printer.on:
+    if print_output:
         output_strings.append(f"Image data starts at: {hex(cur_texture)}")
 
     # 901 and 902 are special in-sequence palettes
     if (pvr.palette & 0xFF00) in [0x900]:
         return decompress_sequenced(reader, pvr)
     elif (pvr.palette & 0xFF00) in [0x100, 0xD00]:
-        # Texture is stored rotated 90 degrees - swap width and height
-        pvr.width += pvr.height
-        pvr.height = pvr.width - pvr.height
-        pvr.width -= pvr.height
         return decompress_morton(reader, pvr)
     # Scrambled / compressed
     else:
@@ -144,7 +157,7 @@ def convert_texture_for_pypng(texture, pvr):
 def extract_16bit_texture(reader, pvr, output_strings):
     # skip unsupported textures
     if (pvr.palette & 0xFF00) not in SUPPORTED_PALETTES:
-        if printer.on:
+        if print_output:
             output_strings.append(f"Not implemented yet: {hex(pvr.palette)}.")
         return False
 
