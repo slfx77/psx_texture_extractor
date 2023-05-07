@@ -1,4 +1,4 @@
-class PSXPVR:
+class PSXPowerVR:
     # An unknown value, possibly a header or some format-specific information.
     unk = 0
 

@@ -50,27 +50,26 @@ def ps1_to_32bpp(color):
     b = (color >> 10) & 0x1F
     a = (color >> 15) & 0x1
 
+    # Fully transparent
     if r == 31 and g == 0 and b == 31:
-        # Fully transparent
         return [0, 0, 0, 0]
-    else:
-        return [int((r / 31) * 255), int((g / 31) * 255), int((b / 31) * 255), 255]
+
+    return [int((r / 31) * 255), int((g / 31) * 255), int((b / 31) * 255), 255]
 
 
 def get_16bpp_color_params(palette):
-    # 5551
-    # Alpha is either 0 or 128 for some reason
-
+    # 0x00 = ARGB1555 (bilevel translucent alpha 0,255)
     if palette & 0xF == 0:
         return argb1555_params
 
-    # 565
-    elif palette & 0xF == 1:
+    # 0x01 = RGB565 (no translucent)
+    if palette & 0xF == 1:
         return rgb565_params
 
-    # 4444
-    else:
-        return argb4444_params
+    # 0x02 = ARGB4444 (translucent alpha 0-255)
+    return argb4444_params
+
+    # 0x03 - 0x06 are other palette types supported by the PVR format, but don't seem to be used by Neversoft
 
 
 def convert_16bpp_to_32bpp(params, color):

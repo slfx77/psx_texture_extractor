@@ -12,8 +12,8 @@ from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow, QTableWidget
 from io_thps_scene import extract_textures
 from main_window_ui import Ui_main_window
 
-print_output = True
-print_traceback = True
+PRINT_OUTPUT = True
+PRINT_TRACEBACK = True
 
 
 # Define main window class, inherits QMainWindow and Ui_main_window
@@ -117,16 +117,16 @@ def process_file(queue, filename, input_dir, output_dir, file_index, create_sub_
 
     try:
         extract_textures(filename, input_dir, output_dir, file_index, create_sub_dirs, output_strings, update_file_table)
-        if print_output:
+        if PRINT_OUTPUT:
             output_strings.append(f"Finished extracting textures from {filename}\n")
-    except Exception as e:
-        if print_output:
-            output_strings.append(f"An error occurred while trying to extract from {filename}. The error was: {e}\n")
-        if print_traceback:
+    except Exception as error:
+        if PRINT_OUTPUT:
+            output_strings.append(f"An error occurred while trying to extract from {filename}. The error was: {error}\n")
+        if PRINT_TRACEBACK:
             traceback.print_exc()
     finally:
         queue.put(("update_progress_bar_signal",))
-        if print_output and len(output_strings) > 0:
+        if PRINT_OUTPUT and len(output_strings) > 0:
             print(separator.join(output_strings))
 
 
@@ -178,10 +178,11 @@ class Worker(QThread):
                 for future in as_completed(futures):
                     try:
                         future.result()
-                    except Exception as e:
-                        exc_type, exc_value, exc_traceback = sys.exc_info()
-                        traceback_msg = "".join(format_exception(exc_type, exc_value, exc_traceback))
-                        print(f"An error occurred in the process: {e}\nTraceback: {traceback_msg}")
+                    except Exception as error:
+                        if PRINT_TRACEBACK:
+                            exc_type, exc_value, exc_traceback = sys.exc_info()
+                            traceback_msg = "".join(format_exception(exc_type, exc_value, exc_traceback))
+                            print(f"An error occurred in the process: {error}\nTraceback: {traceback_msg}")
 
         # Emit the extraction complete signal to inform the GUI that the process is done
         self.extraction_complete_signal.emit()

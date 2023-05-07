@@ -7,50 +7,50 @@ import png
 ##################################
 
 
-def shift_row_right(row, amount):
-    shifted_right = []
-    shifted_right.extend(row[amount * -4 :])
-    shifted_right.extend(row[0 : amount * -4])
-    return shifted_right
+def shift_row_pixels(row_pixels, shift_amount):
+    shifted_row = []
+    shifted_row.extend(row_pixels[shift_amount * -4 :])
+    shifted_row.extend(row_pixels[0 : shift_amount * -4])
+    return shifted_row
 
 
-def shift_rows_down(image, amount):
-    new_image = image.copy()
-    for _ in range(amount):
-        shifted_down = []
-        shifted_down.append(new_image[-1])
-        shifted_down.extend(new_image[0:-1])
-        new_image = shifted_down
-    return new_image
+def shift_image_rows(image_data, shift_amount):
+    shifted_image = image_data.copy()
+    for _ in range(shift_amount):
+        new_rows = []
+        new_rows.append(shifted_image[-1])
+        new_rows.extend(shifted_image[0:-1])
+        shifted_image = new_rows
+    return shifted_image
 
 
-def shift_col_down(image, col, amount, height):
-    col_to_shift = []
-    col_start = col * 4
-    for i in range(0, height):
-        col_to_shift.extend(image[i][col_start : col_start + 4])
-    col_shifted_up = shift_row_right(col_to_shift, amount)
-    new_image = []
-    for i in range(0, height):
-        if col != 0:
-            new_image.append(image[i][0:col_start])
+def shift_image_column(image_data, col_index, shift_amount, image_height):
+    column_data = []
+    col_start_index = col_index * 4
+    for row_index in range(image_height):
+        column_data.extend(image_data[row_index][col_start_index : col_start_index + 4])
+    shifted_column = shift_row_pixels(column_data, shift_amount)
+    new_image_data = []
+    for row_index in range(image_height):
+        if col_index != 0:
+            new_image_data.append(image_data[row_index][0:col_start_index])
         else:
-            new_image.append([])
-        new_image[i].extend(col_shifted_up[i * 4 : i * 4 + 4])
-        new_image[i].extend(image[i][col_start + 4 :])
-    return new_image
+            new_image_data.append([])
+        new_image_data[row_index].extend(shifted_column[row_index * 4 : row_index * 4 + 4])
+        new_image_data[row_index].extend(image_data[row_index][col_start_index + 4 :])
+    return new_image_data
 
 
 def fix_pixel_data(width, height, pixels):
     initial_image = []
-    for i in range(0, height):
+    for row in range(0, height):
         cur_row = []
-        for i in reversed(range(i * width, (i + 1) * width)):
-            cur_row.extend(pixels[i])
-        shifted_right = shift_row_right(cur_row, 1)
+        for col in reversed(range(row * width, (row + 1) * width)):
+            cur_row.extend(pixels[col])
+        shifted_right = shift_row_pixels(cur_row, 1)
         initial_image.append(shifted_right)
-    shifted_down = shift_rows_down(initial_image, 1)
-    return shift_col_down(shifted_down, 0, -1, height)
+    shifted_down = shift_image_rows(initial_image, 1)
+    return shift_image_column(shifted_down, 0, -1, height)
 
 
 def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
@@ -59,8 +59,6 @@ def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
 
     if create_sub_dirs:
         output_dir = os.path.join(output_dir, filename_without_extension)
-    else:
-        output_dir = output_dir
 
     output_path = os.path.join(output_dir, f"{filename_without_extension}_{pvr.header_offset:#0{8}x}.png")
 
@@ -68,10 +66,12 @@ def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
         final_image = fix_pixel_data(pvr.width, pvr.height, pixels)
     elif (pvr.palette & 0xFF00) == 0x400:
         output_path = output_path[0:-4] + "_i" + output_path[-4:]  # Mark unsupported textures with _i
+    elif (pvr.palette & 0xFF00) == 0x200:
+        output_path = output_path[0:-4] + "_d" + output_path[-4:]  # Mark unsupported textures with _d
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    file = open(output_path, "wb")
+    output_file = open(output_path, "wb")
     writer = png.Writer(pvr.width, pvr.height, greyscale=False, alpha=True)
-    writer.write(file, final_image)
-    file.close()
+    writer.write(output_file, final_image)
+    output_file.close()

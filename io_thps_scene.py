@@ -3,22 +3,22 @@ import struct
 from math import log2
 
 from color_helpers import ps1_to_32bpp
-from extract_psx import extract_16bit_texture
+from extract_pvr import extract_16bit_texture
 from helpers import write_to_png
-from psx_pvr import PSXPVR
+from psx_power_vr import PSXPowerVR
 
-print_output = False
-fancy_output = True
+PRINT_OUTPUT = True
+FANCY_OUTPUT = True
 
 
 def print_current_position(reader, output_strings):
-    if print_output:
+    if PRINT_OUTPUT:
         output_strings.append(f"I am at: {hex(reader.tell())}")
 
 
 def skip_model_data(reader, output_strings):
     (ptr_meta, obj_count) = struct.unpack("<II", reader.read(8))
-    if print_output:
+    if PRINT_OUTPUT:
         output_strings.append(f"Num objects: {obj_count}")
 
     # "Objects" are 36 bytes. Skip over them for reading textures.
@@ -28,7 +28,7 @@ def skip_model_data(reader, output_strings):
 
     # Determine number of meshes (we need to skip over the mesh name list before texture info)
     mesh_count = struct.unpack("<I", reader.read(4))[0]
-    if print_output:
+    if PRINT_OUTPUT:
         output_strings.append(f"Num meshes: {mesh_count}")
 
     # Skip to the tagged chunks, find the textures
@@ -38,7 +38,7 @@ def skip_model_data(reader, output_strings):
         magic = reader.read(4)
         chunk_count += 1
         if magic != b"\xFF\xFF\xFF\xFF":
-            if print_output:
+            if PRINT_OUTPUT:
                 output_strings.append(f"SKIPPED CHUNK: 0x{ magic.hex()}")
             unk_length = struct.unpack("<I", reader.read(4))[0]
             reader.read(unk_length)
@@ -46,8 +46,8 @@ def skip_model_data(reader, output_strings):
                 # There should not be this many tagged chunks, must be a file error
                 raise Exception("Unable to parse PSX texture library, cannot find texture data")
         else:
-            if print_output:
-                output_strings.append(f"END OF TAGGED CHUNKS")
+            if PRINT_OUTPUT:
+                output_strings.append("END OF TAGGED CHUNKS")
             break
 
     # Now we are at the model names list - if there are any models
@@ -61,7 +61,7 @@ def read_texture_info(reader, output_strings):
 
     # Read number of textures
     num_tex = struct.unpack("<I", reader.read(4))[0]
-    if print_output:
+    if PRINT_OUTPUT:
         output_strings.append(f"Num textures: {num_tex}")
 
     tex_names = []
@@ -72,7 +72,7 @@ def read_texture_info(reader, output_strings):
 
 def read_palettes(reader, output_strings, num_colors):
     num_textures = struct.unpack("<I", reader.read(4))[0]
-    if print_output:
+    if PRINT_OUTPUT:
         output_strings.append(f"Num {num_colors}-color tex: {num_textures}")
     palettes = []
     for _ in range(num_textures):
@@ -83,7 +83,7 @@ def read_palettes(reader, output_strings, num_colors):
 
 
 def get_texture_info(reader, output_strings, num_tex):
-    pvr = PSXPVR()
+    pvr = PSXPowerVR()
     pvr.header_offset = reader.tell()
 
     pvr.unk = struct.unpack("<I", reader.read(4))[0]
@@ -100,7 +100,7 @@ def get_texture_info(reader, output_strings, num_tex):
 
     pvr.texture_offset = reader.tell()
 
-    if fancy_output:
+    if FANCY_OUTPUT:
         bit_depth_string = f"{int(log2(pvr.pal_size)): >2}-bit"
         palette_string = f"{pvr.palette:#0{3}x}" if pvr.pal_size == 65536 else "N/A"
         output_strings.append(f"| {num_tex: >7} | {pvr.width: >5} | {pvr.height: >6} | {bit_depth_string: >9} | {palette_string: >7} | {pvr.header_offset:#0{8}x} |")
@@ -111,8 +111,7 @@ def get_texture_info(reader, output_strings, num_tex):
 def get_padding_amount(pvr, pad_width):
     if pvr.height % 2 != 0:
         return 2 if pad_width % 4 != 0 else 0
-    else:
-        return 0
+    return 0
 
 
 def extract_4bit_texture(reader, pvr, palette_4bit):
@@ -170,21 +169,21 @@ def extract_textures(filename, input_dir, output_dir, file_index, create_sub_dir
     with open(input_file, "rb") as reader:
         # Read the file header and determine the number of objects, pointer to tagged chunks
         magic = reader.read(4)
-        assert magic == b"\x04\x00\x02\x00" or magic == b"\x03\x00\x02\x00" or magic == b"\x06\x00\x02\x00"
+        assert magic in (b"\x04\x00\x02\x00" or magic == b"\x03\x00\x02\x00" or magic == b"\x06\x00\x02\x00")
 
         skip_model_data(reader, output_strings)
         tex_names = read_texture_info(reader, output_strings)
 
-        # ----------------------------------------------------------------------------------------------
-        # Direct reading from the PSX file - Mostly complete, 16-bit palettes 0x400 - 0x402 unsupported
-        # ----------------------------------------------------------------------------------------------
+        # ----------------------------------------------------------------------------------------------------
+        # Direct reading from the PSX file - Mostly complete. PVR Textures (16-bit) only have partial support
+        # ----------------------------------------------------------------------------------------------------
 
         palette_4bit = read_palettes(reader, output_strings, 16)
         palette_8bit = read_palettes(reader, output_strings, 256)
 
         num_actual_tex = struct.unpack("<I", reader.read(4))[0]
         update_file_table(file_index, {1: str(num_actual_tex)})
-        if print_output:
+        if PRINT_OUTPUT:
             output_strings.append(f"Num actual textures: {num_actual_tex}")
 
         print_current_position(reader, output_strings)
@@ -195,9 +194,9 @@ def extract_textures(filename, input_dir, output_dir, file_index, create_sub_dir
 
         print_current_position(reader, output_strings)
 
-        if num_actual_tex > 0 and fancy_output:
+        if num_actual_tex > 0 and FANCY_OUTPUT:
             output_strings.append(f"Extracting {num_actual_tex} textures from {filename}...")
-            output_strings.append(f"| Texture | Width | Height | Bit-depth | Palette |  Offset  |")
+            output_strings.append("| Texture | Width | Height | Bit-depth | Palette |  Offset  |")
 
         for i in range(num_actual_tex):
             pvr = get_texture_info(reader, output_strings, i + 1)
@@ -209,12 +208,12 @@ def extract_textures(filename, input_dir, output_dir, file_index, create_sub_dir
             extraction_function = extraction_functions.get(pvr.pal_size)
             if extraction_function:
                 pixels = extraction_function(reader, pvr)
-            elif print_output:
+            elif PRINT_OUTPUT:
                 output_strings.append(f"Unsupported palette size ({pvr.pal_size}) for texture {i + 1}")
 
-            if print_output:
+            if PRINT_OUTPUT:
                 output_strings.append(f"{pvr.index}: Finished reading texture. I am at: {hex(reader.tell())}")
-            # Replace the call to write_to_png with the updated version
+
             write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels)
             textures_written += 1
 

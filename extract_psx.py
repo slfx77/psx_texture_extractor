@@ -1,167 +1,178 @@
-import itertools
+import os
 import struct
-from collections import namedtuple
-from os import SEEK_SET
+from math import log2
 
-import pymorton
+from extract_ps1 import extract_4bit_texture, extract_8bit_texture
+from extract_pvr import extract_16bit_texture
+from helpers import write_to_png
+from psx_power_vr import PSXPowerVR
 
-from color_helpers import convert_16bpp_to_32bpp, get_16bpp_color_params
-
-PAD_HEX = 8
-print_output = False
-SUPPORTED_PALETTES = [0x100, 0x300, 0x400, 0x900, 0xD00]
-
-
-ColorBlock = namedtuple("ColorBlock", "pixels")
+PRINT_OUTPUT = True
+FANCY_OUTPUT = True
 
 
-# Borrowed from Rawtex
-def morton(index, texture_width, texture_height):
-    x_bit_position = 1
-    y_bit_position = 1
-    bit_mask = index
-    x_dimension = texture_width
-    y_dimension = texture_height
-    interleaved_x = 0
-    interleaved_y = 0
-
-    while x_dimension > 1 or y_dimension > 1:
-        if x_dimension > 1:
-            interleaved_x += x_bit_position * (bit_mask & 1)
-            bit_mask >>= 1
-            x_bit_position *= 2
-            x_dimension >>= 1
-        if y_dimension > 1:
-            interleaved_y += y_bit_position * (bit_mask & 1)
-            bit_mask >>= 1
-            y_bit_position *= 2
-            y_dimension >>= 1
-
-    return int(interleaved_y * texture_width + interleaved_x)
+def print_current_position(reader, output_strings):
+    if PRINT_OUTPUT:
+        output_strings.append(f"I am at: {hex(reader.tell())}")
 
 
-def get_color_block(reader, cur_texture, color_offset):
-    palette_offset = 0
+def skip_model_data(reader, output_strings):
+    (ptr_meta, obj_count) = struct.unpack("<II", reader.read(8))
+    if PRINT_OUTPUT:
+        output_strings.append(f"Num objects: {obj_count}")
 
-    reader.seek(((cur_texture + 0x800) + color_offset), SEEK_SET)
-    palette_offset = struct.unpack("<B", reader.read(1))[0]
-    reader.seek(cur_texture + 8 * palette_offset, SEEK_SET)
+    # "Objects" are 36 bytes. Skip over them for reading textures.
+    for _ in range(obj_count):
+        # Skip over object data
+        reader.read(36)
 
-    pixels = [struct.unpack("<H", reader.read(2))[0] for _ in range(4)]
-    return ColorBlock(pixels)
+    # Determine number of meshes (we need to skip over the mesh name list before texture info)
+    mesh_count = struct.unpack("<I", reader.read(4))[0]
+    if PRINT_OUTPUT:
+        output_strings.append(f"Num meshes: {mesh_count}")
 
-
-def decompress_sequenced(reader, pvr):
-    counter = 0
-    goal = pvr.width * pvr.height
-    texture_buffer = [0xFF] * (pvr.width * pvr.height)
-
+    # Skip to the tagged chunks, find the textures
+    reader.seek(ptr_meta)
+    chunk_count = -1
     while True:
-        val_a = struct.unpack("<H", reader.read(2))[0]
-        texture_buffer[counter] = val_a
-        counter += 1
-        if counter >= goal:
+        magic = reader.read(4)
+        chunk_count += 1
+        if magic != b"\xFF\xFF\xFF\xFF":
+            if PRINT_OUTPUT:
+                output_strings.append(f"SKIPPED CHUNK: 0x{ magic.hex()}")
+            unk_length = struct.unpack("<I", reader.read(4))[0]
+            reader.read(unk_length)
+            if chunk_count > 16:
+                # There should not be this many tagged chunks, must be a file error
+                raise Exception("Unable to parse PSX texture library, cannot find texture data")
+        else:
+            if PRINT_OUTPUT:
+                output_strings.append("END OF TAGGED CHUNKS")
             break
 
-    return texture_buffer
+    # Now we are at the model names list - if there are any models
+    for _ in range(mesh_count):
+        reader.read(4)
 
 
-def decompress_morton(reader, pvr):
-    texture_buffer_size = pvr.width * pvr.height
-    texture_buffer = [0x00] * texture_buffer_size
+def read_texture_info(reader, output_strings):
+    # Print position where texture data starts
+    print_current_position(reader, output_strings)
 
-    chunk_size = min(pvr.width, pvr.height)
-    chunks_wide = pvr.width // chunk_size
-    chunks_high = pvr.height // chunk_size
+    # Read number of textures
+    num_tex = struct.unpack("<I", reader.read(4))[0]
+    if PRINT_OUTPUT:
+        output_strings.append(f"Num textures: {num_tex}")
 
-    for chunk_y in range(chunks_high):
-        for chunk_x in range(chunks_wide):
-            for i in range(chunk_size * chunk_size):
-                destination_index = morton(i, chunk_size, chunk_size)
-                x, y = destination_index % chunk_size, destination_index // chunk_size
-
-                # Rotate 90 degrees counter-clockwise
-                new_x, new_y = chunk_size - y - 1, x
-
-                # Mirror horizontally
-                new_x = chunk_size - new_x - 1
-
-                # Offset for chunk position
-                new_x += chunk_x * chunk_size
-                new_y += chunk_y * chunk_size
-
-                updated_destination_index = new_y * pvr.width + new_x
-                channel = struct.unpack("<H", reader.read(2))[0]
-                texture_buffer[updated_destination_index] = channel
-
-    return texture_buffer
+    tex_names = []
+    for _ in range(num_tex):
+        tex_names.append(struct.unpack("<I", reader.read(4))[0])
+    return tex_names
 
 
-def decompress_scrambled(reader, pvr, cur_texture):
-    # Initialize the texture_buffer with the size of the final texture
-    texture_buffer = [0xFF] * (pvr.width * pvr.height)
-
-    width_times_two = pvr.width * 2
-
-    # Loop through each block of 2x2 pixels in the texture
-    for row, col in itertools.product(range(pvr.height // 2), range(pvr.width // 2)):
-        # Calculate the color_offset using Morton order encoding
-        color_offset = pymorton.interleave(row, col)
-        # Get the color data for the current block
-        color_block = get_color_block(reader, cur_texture, color_offset)
-
-        # Fill the texture_buffer with the color data
-        base_index = row * width_times_two + col * 2
-        texture_buffer[base_index] = color_block.pixels[0]
-        texture_buffer[base_index + 1] = color_block.pixels[2]
-        texture_buffer[base_index + pvr.width] = color_block.pixels[1]
-        texture_buffer[base_index + pvr.width + 1] = color_block.pixels[3]
-
-    # Return the texture_buffer with the decompressed texture data
-    return texture_buffer
+def read_palettes(reader, output_strings, num_colors):
+    num_textures = struct.unpack("<I", reader.read(4))[0]
+    if PRINT_OUTPUT:
+        output_strings.append(f"Num {num_colors}-color tex: {num_textures}")
+    palettes = []
+    for _ in range(num_textures):
+        this_pal = {"tex_id": struct.unpack("<I", reader.read(4))[0]}
+        this_pal["color_data"] = struct.unpack(f"{num_colors}H", reader.read(num_colors * 2))
+        palettes.append(this_pal)
+    return palettes
 
 
-def decompress_texture(reader, pvr, output_strings):
-    if pvr.height >> 1 == 0:
-        return None
+def get_texture_info(reader, output_strings, num_tex):
+    pvr = PSXPowerVR()
+    pvr.header_offset = reader.tell()
 
-    cur_texture = reader.tell()
-    if print_output:
-        output_strings.append(f"Image data starts at: {hex(cur_texture)}")
+    pvr.unk = struct.unpack("<I", reader.read(4))[0]
+    pvr.pal_size = struct.unpack("<I", reader.read(4))[0]
+    pvr.hash = struct.unpack("<I", reader.read(4))[0]
+    pvr.index = struct.unpack("<I", reader.read(4))[0]
+    pvr.width = struct.unpack("<H", reader.read(2))[0]
+    pvr.height = struct.unpack("<H", reader.read(2))[0]
 
-    # 901 and 902 are special in-sequence palettes
-    if (pvr.palette & 0xFF00) in [0x900]:
-        return decompress_sequenced(reader, pvr)
-    elif (pvr.palette & 0xFF00) in [0x100, 0xD00]:
-        return decompress_morton(reader, pvr)
-    # Scrambled / compressed
+    # 16-bit textures have additional information in their headers
+    if pvr.pal_size == 65536:
+        pvr.palette = struct.unpack("<I", reader.read(4))[0]
+        pvr.size = struct.unpack("<I", reader.read(4))[0]
+
+    pvr.texture_offset = reader.tell()
+
+    if FANCY_OUTPUT:
+        bit_depth_string = f"{int(log2(pvr.pal_size)): >2}-bit"
+        palette_string = f"{pvr.palette:#0{3}x}" if pvr.pal_size == 65536 else "N/A"
+        output_strings.append(f"| {num_tex: >7} | {pvr.width: >5} | {pvr.height: >6} | {bit_depth_string: >9} | {palette_string: >7} | {pvr.header_offset:#0{8}x} |")
+
+    return pvr
+
+
+def extract_textures(filename, input_dir, output_dir, file_index, create_sub_dirs, output_strings, update_file_table):
+    tex_names = []
+    tex_hashes = {}
+    textures_written = 0
+
+    extraction_functions = {
+        16: lambda reader, pvr: extract_4bit_texture(reader, pvr, palette_4bit),
+        256: lambda reader, pvr: extract_8bit_texture(reader, pvr, palette_8bit),
+        65536: lambda reader, pvr: extract_16bit_texture(reader, pvr, output_strings),
+    }
+
+    input_file = os.path.join(input_dir, filename)
+
+    with open(input_file, "rb") as reader:
+        # Read the file header and determine the number of objects, pointer to tagged chunks
+        magic = reader.read(4)
+        assert magic in (b"\x04\x00\x02\x00" or magic == b"\x03\x00\x02\x00" or magic == b"\x06\x00\x02\x00")
+
+        skip_model_data(reader, output_strings)
+        tex_names = read_texture_info(reader, output_strings)
+
+        # ----------------------------------------------------------------------------------------------------
+        # Direct reading from the PSX file - Mostly complete. PVR Textures (16-bit) only have partial support
+        # ----------------------------------------------------------------------------------------------------
+
+        palette_4bit = read_palettes(reader, output_strings, 16)
+        palette_8bit = read_palettes(reader, output_strings, 256)
+
+        num_actual_tex = struct.unpack("<I", reader.read(4))[0]
+        update_file_table(file_index, {1: str(num_actual_tex)})
+        if PRINT_OUTPUT:
+            output_strings.append(f"Num actual textures: {num_actual_tex}")
+
+        print_current_position(reader, output_strings)
+
+        # Skip unknown data
+        for i in range(num_actual_tex):
+            reader.read(4)
+
+        print_current_position(reader, output_strings)
+
+        if num_actual_tex > 0 and FANCY_OUTPUT:
+            output_strings.append(f"Extracting {num_actual_tex} textures from {filename}...")
+            output_strings.append("| Texture | Width | Height | Bit-depth | Palette |  Offset  |")
+
+        for i in range(num_actual_tex):
+            pvr = get_texture_info(reader, output_strings, i + 1)
+            tex_hashes[i] = tex_names[i]  # tex_hash
+
+            # Now read the raw texture data
+            pixels = []
+
+            extraction_function = extraction_functions.get(pvr.pal_size)
+            if extraction_function:
+                pixels = extraction_function(reader, pvr)
+            elif PRINT_OUTPUT:
+                output_strings.append(f"Unsupported palette size ({pvr.pal_size}) for texture {i + 1}")
+
+            if PRINT_OUTPUT:
+                output_strings.append(f"{pvr.index}: Finished reading texture. I am at: {hex(reader.tell())}")
+
+            write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels)
+            textures_written += 1
+
+    if num_actual_tex > 0:
+        update_file_table(file_index, {2: str(textures_written), 3: "OK" if num_actual_tex == textures_written else "ERROR"})
     else:
-        return decompress_scrambled(reader, pvr, cur_texture)
-
-
-def convert_texture_for_pypng(texture, pvr):
-    params = get_16bpp_color_params(pvr.palette)
-
-    pixels = []
-    pixel_row = []
-
-    for i in texture:
-        pixel_row += convert_16bpp_to_32bpp(params, i)
-        if len(pixel_row) == pvr.width * 4:
-            pixels.append(pixel_row)
-            pixel_row = []
-
-    return pixels
-
-
-def extract_16bit_texture(reader, pvr, output_strings):
-    # skip unsupported textures
-    if (pvr.palette & 0xFF00) not in SUPPORTED_PALETTES:
-        if print_output:
-            output_strings.append(f"Not implemented yet: {hex(pvr.palette)}.")
-        return False
-
-    decompressed = decompress_texture(reader, pvr, output_strings)
-
-    reader.seek(pvr.texture_offset + pvr.size, SEEK_SET)
-    return convert_texture_for_pypng(decompressed, pvr)
+        update_file_table(file_index, {2: "0", 3: "SKIPPED"})
