@@ -1,10 +1,11 @@
 import os
 
 import png
+import math
 
-##################################
-# IO THPS Scene Image Correction #
-##################################
+from color_helpers import convert_16_bit_texture_for_pypng
+
+# IO THPS Scene Image Correction
 
 
 def shift_row_pixels(row_pixels, shift_amount):
@@ -53,8 +54,19 @@ def fix_pixel_data(width, height, pixels):
     return shift_image_column(shifted_down, 0, -1, height)
 
 
+# End IO THPS Scene Image Correction
+
+
+def write_image(output_path, width, height, final_image):
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    output_file = open(output_path, "wb")
+    writer = png.Writer(width, height, greyscale=False, alpha=True)
+    writer.write(output_file, final_image)
+    output_file.close()
+
+
 def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
-    final_image = pixels
     filename_without_extension = "".join(filename.split(".")[0:-1])
 
     if create_sub_dirs:
@@ -63,15 +75,8 @@ def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
     output_path = os.path.join(output_dir, f"{filename_without_extension}_{pvr.header_offset:#0{8}x}.png")
 
     if pvr.pal_size != 65536:
-        final_image = fix_pixel_data(pvr.width, pvr.height, pixels)
-    elif (pvr.palette & 0xFF00) == 0x400:
-        output_path = output_path[0:-4] + "_i" + output_path[-4:]  # Mark unsupported textures with _i
-    elif (pvr.palette & 0xFF00) == 0x200:
-        output_path = output_path[0:-4] + "_d" + output_path[-4:]  # Mark unsupported textures with _d
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-    output_file = open(output_path, "wb")
-    writer = png.Writer(pvr.width, pvr.height, greyscale=False, alpha=True)
-    writer.write(output_file, final_image)
-    output_file.close()
+        write_image(output_path, pvr.width, pvr.height, fix_pixel_data(pvr.width, pvr.height, pixels))
+    else:
+        if (pvr.palette & 0xFF00) in [0x200]:
+            output_path = output_path[0:-4] + "_d" + output_path[-4:]  # Mark unsupported textures with _d
+        write_image(output_path, pvr.width, pvr.height, convert_16_bit_texture_for_pypng(pvr.palette, pvr.width, pixels))

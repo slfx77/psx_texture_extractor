@@ -108,6 +108,13 @@ def get_texture_info(reader, output_strings, num_tex):
     return pvr
 
 
+def report_status(num_actual_tex, update_file_table, file_index, textures_written):
+    if num_actual_tex > 0:
+        update_file_table(file_index, {2: str(textures_written), 3: "OK" if num_actual_tex == textures_written else "ERROR"})
+    else:
+        update_file_table(file_index, {2: "0", 3: "SKIPPED"})
+
+
 def extract_textures(filename, input_dir, output_dir, file_index, create_sub_dirs, output_strings, update_file_table):
     tex_names = []
     tex_hashes = {}
@@ -121,58 +128,62 @@ def extract_textures(filename, input_dir, output_dir, file_index, create_sub_dir
 
     input_file = os.path.join(input_dir, filename)
 
-    with open(input_file, "rb") as reader:
-        # Read the file header and determine the number of objects, pointer to tagged chunks
-        magic = reader.read(4)
-        assert magic in (b"\x04\x00\x02\x00" or magic == b"\x03\x00\x02\x00" or magic == b"\x06\x00\x02\x00")
+    try:
+        with open(input_file, "rb") as reader:
+            # Read the file header and determine the number of objects, pointer to tagged chunks
+            magic = reader.read(4)
+            assert magic in (b"\x04\x00\x02\x00", b"\x03\x00\x02\x00", b"\x06\x00\x02\x00")
 
-        skip_model_data(reader, output_strings)
-        tex_names = read_texture_info(reader, output_strings)
+            skip_model_data(reader, output_strings)
+            tex_names = read_texture_info(reader, output_strings)
 
-        # ----------------------------------------------------------------------------------------------------
-        # Direct reading from the PSX file - Mostly complete. PVR Textures (16-bit) only have partial support
-        # ----------------------------------------------------------------------------------------------------
+            # ----------------------------------------------------------------------------------------------------
+            # Direct reading from the PSX file - Mostly complete. PVR Textures (16-bit) only have partial support
+            # ----------------------------------------------------------------------------------------------------
 
-        palette_4bit = read_palettes(reader, output_strings, 16)
-        palette_8bit = read_palettes(reader, output_strings, 256)
+            palette_4bit = read_palettes(reader, output_strings, 16)
+            palette_8bit = read_palettes(reader, output_strings, 256)
 
-        num_actual_tex = struct.unpack("<I", reader.read(4))[0]
-        update_file_table(file_index, {1: str(num_actual_tex)})
-        if PRINT_OUTPUT:
-            output_strings.append(f"Num actual textures: {num_actual_tex}")
-
-        print_current_position(reader, output_strings)
-
-        # Skip unknown data
-        for i in range(num_actual_tex):
-            reader.read(4)
-
-        print_current_position(reader, output_strings)
-
-        if num_actual_tex > 0 and FANCY_OUTPUT:
-            output_strings.append(f"Extracting {num_actual_tex} textures from {filename}...")
-            output_strings.append("| Texture | Width | Height | Bit-depth | Palette |  Offset  |")
-
-        for i in range(num_actual_tex):
-            pvr = get_texture_info(reader, output_strings, i + 1)
-            tex_hashes[i] = tex_names[i]  # tex_hash
-
-            # Now read the raw texture data
-            pixels = []
-
-            extraction_function = extraction_functions.get(pvr.pal_size)
-            if extraction_function:
-                pixels = extraction_function(reader, pvr)
-            elif PRINT_OUTPUT:
-                output_strings.append(f"Unsupported palette size ({pvr.pal_size}) for texture {i + 1}")
-
+            num_actual_tex = struct.unpack("<I", reader.read(4))[0]
+            update_file_table(file_index, {1: str(num_actual_tex)})
             if PRINT_OUTPUT:
-                output_strings.append(f"{pvr.index}: Finished reading texture. I am at: {hex(reader.tell())}")
+                output_strings.append(f"Num actual textures: {num_actual_tex}")
 
-            write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels)
-            textures_written += 1
+            print_current_position(reader, output_strings)
 
-    if num_actual_tex > 0:
-        update_file_table(file_index, {2: str(textures_written), 3: "OK" if num_actual_tex == textures_written else "ERROR"})
-    else:
-        update_file_table(file_index, {2: "0", 3: "SKIPPED"})
+            # Skip unknown data
+            for i in range(num_actual_tex):
+                reader.read(4)
+
+            print_current_position(reader, output_strings)
+
+            if num_actual_tex > 0 and FANCY_OUTPUT:
+                output_strings.append(f"Extracting {num_actual_tex} textures from {filename}...")
+                output_strings.append("| Texture | Width | Height | Bit-depth | Palette |  Offset  |")
+
+            for i in range(num_actual_tex):
+                pvr = get_texture_info(reader, output_strings, i + 1)
+                tex_hashes[i] = tex_names[i]  # tex_hash
+
+                # Now read the raw texture data
+                pixels = []
+
+                extraction_function = extraction_functions.get(pvr.pal_size)
+                if extraction_function:
+                    if PRINT_OUTPUT:
+                        cur_texture = reader.tell()
+                        output_strings.append(f"Image data starts at: {hex(cur_texture)}")
+                    pixels = extraction_function(reader, pvr)
+                elif PRINT_OUTPUT:
+                    output_strings.append(f"Unsupported palette size ({pvr.pal_size}) for texture {i + 1}")
+
+                if PRINT_OUTPUT:
+                    output_strings.append(f"{pvr.index}: Finished reading texture. I am at: {hex(reader.tell())}")
+
+                write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels)
+                textures_written += 1
+    except Exception as error:
+        report_status(num_actual_tex, update_file_table, file_index, textures_written)
+        raise error
+    finally:
+        report_status(num_actual_tex, update_file_table, file_index, textures_written)

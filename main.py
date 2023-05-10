@@ -9,7 +9,7 @@ from traceback import format_exception
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow, QTableWidgetItem
 
-from io_thps_scene import extract_textures
+from extract_psx import extract_textures
 from main_window_ui import Ui_main_window
 
 PRINT_OUTPUT = True
@@ -171,8 +171,8 @@ class Worker(QThread):
                         signal_type, *args = queue.get()
                         if signal_type == "update_file_table_signal":
                             self.update_file_table_signal.emit(*args)
-                        elif signal_type == "progress_signal":
-                            self.progress_signal.emit()
+                        elif signal_type == "update_progress_bar_signal":
+                            self.update_progress_bar_signal.emit()
 
                 # Iterate through the completed futures and handle any exceptions
                 for future in as_completed(futures):

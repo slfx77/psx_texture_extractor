@@ -85,3 +85,18 @@ def convert_16bpp_to_32bpp(params, color):
     a = 255 if params["alpha_max"] == 0 else int((a / params["alpha_max"]) * 255)
 
     return [r, g, b, a]
+
+
+def convert_16_bit_texture_for_pypng(palette, width, texture):
+    params = get_16bpp_color_params(palette)
+
+    pixels = []
+    pixel_row = []
+
+    for i in texture:
+        pixel_row += convert_16bpp_to_32bpp(params, i)
+        if len(pixel_row) == width * 4:
+            pixels.append(pixel_row)
+            pixel_row = []
+
+    return pixels
