@@ -17,10 +17,10 @@ class PSXPowerVR:
     # The height of the texture in pixels.
     height = 0
 
-    # The palette index for 16-bit textures.
-    palette = 0
+    # The pixel_format for PVR textures.
+    pixel_format = 0
 
-    # The size of the texture data in bytes for 16-bit textures.
+    # The size of the texture data in bytes for PVR textures.
     size = 0
 
     # Extra data (not part of the format but used for conversion)

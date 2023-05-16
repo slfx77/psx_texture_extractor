@@ -77,4 +77,4 @@ def write_to_png(filename, output_dir, create_sub_dirs, pvr, pixels):
     if pvr.pal_size != 65536:
         write_image(output_path, pvr.width, pvr.height, fix_pixel_data(pvr.width, pvr.height, pixels))
     else:
-        write_image(output_path, pvr.width, pvr.height, convert_16_bit_texture_for_pypng(pvr.palette, pvr.width, pixels))
+        write_image(output_path, pvr.width, pvr.height, convert_16_bit_texture_for_pypng(pvr.pixel_format, pvr.width, pixels))

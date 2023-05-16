@@ -10,7 +10,7 @@ import pymorton
 
 PAD_HEX = 8
 PRINT_OUTPUT = True
-SUPPORTED_PALETTES = [0x100, 0x200, 0x300, 0x400, 0x900, 0xD00]
+SUPPORTED_FORMATS = [0x100, 0x200, 0x300, 0x400, 0x900, 0xD00]
 
 ColorBlock = namedtuple("ColorBlock", "pixels")
 
@@ -127,7 +127,7 @@ def decode_twiddled_vq(reader, pvr, texture_offset, mipmap=False):
 
 
 def skip_unsupported(pvr, output_strings, texture_type):
-    if (pvr.palette & 0xFF00) not in SUPPORTED_PALETTES:
+    if (pvr.palette & 0xFF00) not in SUPPORTED_FORMATS:
         if PRINT_OUTPUT:
             output_strings.append(f"Not implemented yet: {hex(pvr.palette)} - {texture_type}.")
         return None

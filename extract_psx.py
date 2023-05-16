@@ -95,14 +95,14 @@ def get_texture_info(reader, output_strings, num_tex):
 
     # 16-bit textures have additional information in their headers
     if pvr.pal_size == 65536:
-        pvr.palette = struct.unpack("<I", reader.read(4))[0]
+        pvr.pixel_format = struct.unpack("<I", reader.read(4))[0]
         pvr.size = struct.unpack("<I", reader.read(4))[0]
 
     pvr.texture_offset = reader.tell()
 
     if FANCY_OUTPUT:
         bit_depth_string = f"{int(log2(pvr.pal_size)): >2}-bit"
-        palette_string = f"{pvr.palette:#0{3}x}" if pvr.pal_size == 65536 else "N/A"
+        palette_string = f"{pvr.pixel_format:#0{3}x}" if pvr.pal_size == 65536 else "N/A"
         output_strings.append(f"| {num_tex: >7} | {pvr.width: >5} | {pvr.height: >6} | {bit_depth_string: >9} | {palette_string: >7} | {pvr.header_offset:#0{8}x} |")
 
     return pvr

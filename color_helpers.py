@@ -57,13 +57,13 @@ def ps1_to_32bpp(color):
     return [int((r / 31) * 255), int((g / 31) * 255), int((b / 31) * 255), 255]
 
 
-def get_16bpp_color_params(palette):
+def get_16bpp_color_params(pixel_format):
     # 0x00 = ARGB1555 (bilevel translucent alpha 0,255)
-    if palette & 0xF == 0:
+    if pixel_format & 0xF == 0:
         return argb1555_params
 
     # 0x01 = RGB565 (no translucent)
-    if palette & 0xF == 1:
+    if pixel_format & 0xF == 1:
         return rgb565_params
 
     # 0x02 = ARGB4444 (translucent alpha 0-255)
@@ -87,8 +87,8 @@ def convert_16bpp_to_32bpp(params, color):
     return [r, g, b, a]
 
 
-def convert_16_bit_texture_for_pypng(palette, width, texture):
-    params = get_16bpp_color_params(palette)
+def convert_16_bit_texture_for_pypng(pixel_format, width, texture):
+    params = get_16bpp_color_params(pixel_format)
 
     pixels = []
     pixel_row = []
