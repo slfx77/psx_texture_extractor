@@ -16,6 +16,13 @@ PRINT_OUTPUT = True
 PRINT_TRACEBACK = True
 
 
+class NumericTableWidgetItem(QTableWidgetItem):
+    def __lt__(self, other):
+        self_value = int(self.text()) if self.text() else 0
+        other_value = int(other.text()) if other.text() else 0
+        return self_value < other_value
+
+
 # Define main window class, inherits QMainWindow and Ui_main_window
 class Window(QMainWindow, Ui_main_window):
     current_dir = ""
@@ -70,11 +77,23 @@ class Window(QMainWindow, Ui_main_window):
             else:
                 self.extract_button.setEnabled(False)
 
+    # Clear the Textures Extracted and Status columns
+    def clear_columns(self):
+        for row in range(self.file_table.rowCount()):
+            self.file_table.setItem(row, 2, NumericTableWidgetItem(""))
+            self.file_table.setItem(row, 3, NumericTableWidgetItem(""))
+
     # Start the extraction process when the extract button is clicked
     def extract_clicked(self):
-        self.start_time = datetime.now()
+        # Cleanup previous state
+        self.clear_columns()
         self.progress_bar.setValue(0)
         self.extract_button.setEnabled(False)
+        self.file_table.setSortingEnabled(False)
+        self.files_processed = 0
+
+        # Start the extraction process
+        self.start_time = datetime.now()
         self.worker = Worker(self.current_files, self.current_dir, self.output_dir, self.file_table, self.create_sub_dirs)
         self.worker.update_progress_bar_signal.connect(self.update_progress_bar)
         self.worker.extraction_complete_signal.connect(self.extraction_complete)
@@ -91,14 +110,14 @@ class Window(QMainWindow, Ui_main_window):
     # Update the file table in the GUI
     @pyqtSlot(int, int, str)
     def update_file_table(self, row, col, text):
-        new_item = QTableWidgetItem(text)
-        self.file_table.setItem(row, col, new_item)
+        self.file_table.setItem(row, col, NumericTableWidgetItem(text)) if col in [1, 2] else self.file_table.setItem(row, col, QTableWidgetItem(text))
 
     # Update the UI and display the time elapsed when the extraction is complete
     @pyqtSlot()
     def extraction_complete(self):
         self.progress_bar.setValue(100)
         self.extract_button.setEnabled(True)
+        self.file_table.setSortingEnabled(True)
         self.status_bar.showMessage(f"Time elapsed: {(datetime.now() - self.start_time).total_seconds()}")
 
     # Toggle the create_sub_dirs boolean when the Create Subdirectories checkbox is clicked

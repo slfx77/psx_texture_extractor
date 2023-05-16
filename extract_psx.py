@@ -7,7 +7,7 @@ from extract_pvr import extract_16bit_texture
 from helpers import write_to_png
 from psx_power_vr import PSXPowerVR
 
-PRINT_OUTPUT = True
+PRINT_OUTPUT = False
 FANCY_OUTPUT = True
 
 

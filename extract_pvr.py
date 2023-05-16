@@ -4,7 +4,7 @@
 import itertools
 import struct
 from collections import namedtuple
-from os import SEEK_SET
+from os import SEEK_SET, SEEK_CUR
 
 import pymorton
 
@@ -13,6 +13,19 @@ PRINT_OUTPUT = True
 SUPPORTED_PALETTES = [0x100, 0x200, 0x300, 0x400, 0x900, 0xD00]
 
 ColorBlock = namedtuple("ColorBlock", "pixels")
+
+
+def decode_rectangle(reader, pvr):
+    counter = 0
+    goal = pvr.width * pvr.height
+    texture_buffer = [0xFF] * (pvr.width * pvr.height)
+
+    while counter < goal:
+        val_a = struct.unpack("<H", reader.read(2))[0]
+        texture_buffer[counter] = val_a
+        counter += 1
+
+    return texture_buffer
 
 
 def morton(index, texture_width, texture_height):
@@ -41,22 +54,13 @@ def morton(index, texture_width, texture_height):
     return int(interleaved_y * texture_width + interleaved_x)
 
 
-def decompress_sequenced(reader, pvr):
-    counter = 0
-    goal = pvr.width * pvr.height
-    texture_buffer = [0xFF] * (pvr.width * pvr.height)
-
-    while counter < goal:
-        val_a = struct.unpack("<H", reader.read(2))[0]
-        texture_buffer[counter] = val_a
-        counter += 1
-
-    return texture_buffer
-
-
-def decompress_morton(reader, pvr):
+def decode_twiddled(reader, pvr, mipmap=False):
     texture_buffer_size = pvr.width * pvr.height
     texture_buffer = [0x00] * texture_buffer_size
+
+    if mipmap:
+        mip_level_start_index = calculate_mip_level_start_index(pvr.width) * 2
+        reader.seek(reader.tell() + mip_level_start_index, SEEK_SET)
 
     chunk_size = min(pvr.width, pvr.height)
     chunks_wide = pvr.width // chunk_size
@@ -80,7 +84,6 @@ def decompress_morton(reader, pvr):
             new_y += chunk_offset_y
 
             updated_destination_index = new_y * pvr.width + new_x
-
             channel = struct.unpack("<H", reader.read(2))[0]
             texture_buffer[updated_destination_index] = channel
 
@@ -95,16 +98,16 @@ def calculate_mip_level_start_index(mip_level_dimension):
     return start_index
 
 
-def get_color_block(reader, cur_texture, color_offset):
-    reader.seek(cur_texture + 0x800 + color_offset)
+def get_color_block(reader, texture_offset, color_offset):
+    reader.seek(texture_offset + 0x800 + color_offset)
     palette_offset = struct.unpack("<B", reader.read(1))[0]
 
-    reader.seek(cur_texture + 8 * palette_offset)
+    reader.seek(texture_offset + 8 * palette_offset)
     pixels = [struct.unpack("<H", reader.read(2))[0] for _ in range(4)]
     return ColorBlock(pixels)
 
 
-def decode_twiddled_vq(reader, pvr, offset, mipmap=False):
+def decode_twiddled_vq(reader, pvr, texture_offset, mipmap=False):
     texture_buffer = [0xFF] * (pvr.width * pvr.height)
     width_times_two = pvr.width * 2
 
@@ -112,7 +115,7 @@ def decode_twiddled_vq(reader, pvr, offset, mipmap=False):
 
     for row, col in itertools.product(range(pvr.height // 2), range(pvr.width // 2)):
         color_offset = pymorton.interleave(row, col) + mip_level_offset
-        color_block = get_color_block(reader, offset, color_offset)
+        color_block = get_color_block(reader, texture_offset, color_offset)
 
         base_index = row * width_times_two + col * 2
         texture_buffer[base_index] = color_block.pixels[0]
@@ -134,21 +137,21 @@ def decompress_texture(reader, pvr, output_strings):
     if pvr.height >> 1 == 0:
         return None
 
-    extraction_functions = {
+    decoding_functions = {
         0x000: lambda: skip_unsupported(pvr, output_strings, "UNKNOWN"),  # Unknown
-        0x100: lambda: decompress_morton(reader, pvr),  # Square twiddled
-        0x200: lambda: decompress_morton(reader, pvr),  # Square twiddled & mipmap (Unimplemented)
+        0x100: lambda: decode_twiddled(reader, pvr),  # Square twiddled
+        0x200: lambda: decode_twiddled(reader, pvr, True),  # Square twiddled & mipmap (Unimplemented)
         0x300: lambda: decode_twiddled_vq(reader, pvr, reader.tell()),  # VQ
         0x400: lambda: decode_twiddled_vq(reader, pvr, reader.tell(), True),  # VQ & mipmap
         0x500: lambda: skip_unsupported(pvr, output_strings, "8-BIT CLUT TWIDDLED"),  # 8-bit CLUT twiddled
         0x600: lambda: skip_unsupported(pvr, output_strings, "4-BIT CLUT TWIDDLED"),  # 4-bit CLUT twiddled
         0x700: lambda: skip_unsupported(pvr, output_strings, "8-BIT DIRECT TWIDDLED"),  # 8-bit direct twiddled
         0x800: lambda: skip_unsupported(pvr, output_strings, "4-BIT DIRECT TWIDDLED"),  # 4-bit direct twiddled
-        0x900: lambda: decompress_sequenced(reader, pvr),  # Rectangle
+        0x900: lambda: decode_rectangle(reader, pvr),  # Rectangle
         0xA00: lambda: skip_unsupported(pvr, output_strings, "UNKNOWN"),  # Unknown
         0xB00: lambda: skip_unsupported(pvr, output_strings, "RECTANGULAR STRIDE"),  # Rectanglular stride
         0xC00: lambda: skip_unsupported(pvr, output_strings, "UNKNOWN"),  # Unknown
-        0xD00: lambda: decompress_morton(reader, pvr),  # Rectanglular twiddled
+        0xD00: lambda: decode_twiddled(reader, pvr),  # Rectanglular twiddled
         0xE00: lambda: skip_unsupported(pvr, output_strings, "UNKNOWN"),  # Unknown
         0xF00: lambda: skip_unsupported(pvr, output_strings, "UNKNOWN"),  # Unknown
         0x1000: lambda: skip_unsupported(pvr, output_strings, "SMALL VQ"),  # Small VQ
@@ -157,8 +160,8 @@ def decompress_texture(reader, pvr, output_strings):
     }
 
     palette_type = pvr.palette & 0xFF00
-    extraction_function = extraction_functions.get(palette_type)
-    return extraction_function()
+    decode_function = decoding_functions.get(palette_type)
+    return decode_function()
 
 
 def extract_16bit_texture(reader, pvr, output_strings):
