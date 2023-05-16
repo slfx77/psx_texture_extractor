@@ -140,7 +140,7 @@ def decompress_texture(reader, pvr, output_strings):
     decoding_functions = {
         0x000: lambda: skip_unsupported(pvr, output_strings, "UNKNOWN"),  # Unknown
         0x100: lambda: decode_twiddled(reader, pvr),  # Square twiddled
-        0x200: lambda: decode_twiddled(reader, pvr, True),  # Square twiddled & mipmap (Unimplemented)
+        0x200: lambda: decode_twiddled(reader, pvr, True),  # Square twiddled & mipmap
         0x300: lambda: decode_twiddled_vq(reader, pvr, reader.tell()),  # VQ
         0x400: lambda: decode_twiddled_vq(reader, pvr, reader.tell(), True),  # VQ & mipmap
         0x500: lambda: skip_unsupported(pvr, output_strings, "8-BIT CLUT TWIDDLED"),  # 8-bit CLUT twiddled
