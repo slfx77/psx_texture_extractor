@@ -127,9 +127,9 @@ def decode_twiddled_vq(reader, pvr, texture_offset, mipmap=False):
 
 
 def skip_unsupported(pvr, output_strings, texture_type):
-    if (pvr.palette & 0xFF00) not in SUPPORTED_FORMATS:
+    if (pvr.pixel_format & 0xFF00) not in SUPPORTED_FORMATS:
         if PRINT_OUTPUT:
-            output_strings.append(f"Not implemented yet: {hex(pvr.palette)} - {texture_type}.")
+            output_strings.append(f"Not implemented yet: {hex(pvr.pixel_format)} - {texture_type}.")
         return None
 
 
@@ -159,7 +159,7 @@ def decompress_texture(reader, pvr, output_strings):
         0x1200: lambda: skip_unsupported(pvr, output_strings, "SQUARE TWIDDLED & MIPMAP"),  # Square twiddled & mipmap
     }
 
-    palette_type = pvr.palette & 0xFF00
+    palette_type = pvr.pixel_format & 0xFF00
     decode_function = decoding_functions.get(palette_type)
     return decode_function()
 
