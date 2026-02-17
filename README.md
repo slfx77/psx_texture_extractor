@@ -1,3 +1,7 @@
+# ⚠️ NOTE:
+
+This project's feature set has been entirely eclipsed by my newer tool, [Neversoft Multitool](https://github.com/slfx77/neversoft-multitool)
+
 # Requirements
 
 - [python3](https://www.python.org/)
